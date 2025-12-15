@@ -164,10 +164,15 @@ public class MapHttpServer {
 
                 log.debug("Parsed tile request: world={}, zoom={}, x={}, z={}", worldDim, zoom, regionX, regionZ);
 
-                // Parse world and dimension
-                String[] worldDimParts = worldDim.split("_");
-                String worldName = worldDimParts[0];
-                int dimId = worldDimParts.length > 1 ? Integer.parseInt(worldDimParts[worldDimParts.length - 1]) : 0;
+                // Parse world and dimension (format: worldName_dimId)
+                // World name may contain underscores, so find the last underscore
+                int lastUnderscore = worldDim.lastIndexOf('_');
+                if (lastUnderscore == -1) {
+                    sendError(exchange, 400, "Invalid world format");
+                    return;
+                }
+                String worldName = worldDim.substring(0, lastUnderscore);
+                int dimId = Integer.parseInt(worldDim.substring(lastUnderscore + 1));
 
                 // Find the dimension
                 World world = Server.getInstance().getWorldPool().getWorld(worldName);

@@ -283,15 +283,16 @@ public class MapTileManager {
 
         try {
             if (Files.exists(tilesDirectory)) {
-                Files.walk(tilesDirectory)
-                    .sorted((a, b) -> -a.compareTo(b))
-                    .forEach(path -> {
-                        try {
-                            Files.deleteIfExists(path);
-                        } catch (IOException e) {
-                            log.warn("Failed to delete {}", path);
-                        }
-                    });
+                try (var paths = Files.walk(tilesDirectory)) {
+                    paths.sorted((a, b) -> -a.compareTo(b))
+                        .forEach(path -> {
+                            try {
+                                Files.deleteIfExists(path);
+                            } catch (IOException e) {
+                                log.warn("Failed to delete {}", path);
+                            }
+                        });
+                }
             }
             Files.createDirectories(tilesDirectory);
         } catch (IOException e) {
