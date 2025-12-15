@@ -123,7 +123,7 @@ public class MapTileManager {
 
         // For zoom > 0, always generate on-the-fly (no caching)
         if (zoom > 0) {
-            return generateZoomedTile(dimension, dimensionName, tileX, tileZ, zoom);
+            return generateZoomedTile(dimension, tileX, tileZ, zoom);
         }
 
         // For zoom 0, check if currently rendering first
@@ -169,8 +169,7 @@ public class MapTileManager {
      * Generate a zoomed-out tile by combining 4 tiles from a lower zoom level.
      * Generated on-the-fly without caching.
      */
-    private CompletableFuture<BufferedImage> generateZoomedTile(
-            Dimension dimension, String dimensionName, int tileX, int tileZ, int zoom) {
+    private CompletableFuture<BufferedImage> generateZoomedTile(Dimension dimension, int tileX, int tileZ, int zoom) {
 
         int resultSize = getTileSize(zoom);
         int sourceZoom = zoom - 1;
