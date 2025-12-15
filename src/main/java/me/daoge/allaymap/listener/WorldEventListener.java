@@ -6,7 +6,6 @@ import me.daoge.allaymap.render.RenderQueue;
 import org.allaymc.api.eventbus.EventHandler;
 import org.allaymc.api.eventbus.event.world.ChunkLoadEvent;
 import org.allaymc.api.eventbus.event.block.BlockPlaceEvent;
-import org.allaymc.api.eventbus.event.block.BlockBreakEvent;
 
 /**
  * Listens for world events and marks affected regions as dirty for re-rendering.
@@ -28,13 +27,6 @@ public class WorldEventListener {
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
-        var pos = event.getBlock().getPosition();
-        var dimension = event.getBlock().getDimension();
-        renderQueue.markBlockDirty(dimension, pos.x(), pos.z());
-    }
-
-    @EventHandler
-    public void onBlockBreak(BlockBreakEvent event) {
         var pos = event.getBlock().getPosition();
         var dimension = event.getBlock().getDimension();
         renderQueue.markBlockDirty(dimension, pos.x(), pos.z());
