@@ -158,11 +158,16 @@ public class MapTileManager {
             future = CompletableFuture.completedFuture(createEmptyTile());
         }
 
-        // Remove from cache when completed
-        future = future.whenComplete((result, error) -> tileLoadingTasks.remove(key));
-
+        // Put into map first, then add cleanup callback
+        // This avoids race condition where callback runs before putIfAbsent
         CompletableFuture<BufferedImage> previous = tileLoadingTasks.putIfAbsent(key, future);
-        return previous != null ? previous : future;
+        if (previous != null) {
+            return previous;
+        }
+
+        // Successfully added to map, now register cleanup callback
+        future.whenComplete((result, error) -> tileLoadingTasks.remove(key));
+        return future;
     }
 
     /**
