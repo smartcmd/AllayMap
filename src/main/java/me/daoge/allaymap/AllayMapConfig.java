@@ -24,8 +24,15 @@ public class AllayMapConfig extends OkaeriConfig {
     @Comment("Interval in seconds between processing dirty (modified) chunks")
     @Comment("Lower values = faster map updates but higher CPU usage")
     @Comment("Higher values = slower map updates but lower CPU usage")
-    @Comment("Recommended: 30-120 seconds depending on server performance")
-    @Comment("Default: 60")
+    @Comment("Default: 10")
     @CustomKey("update-interval")
-    private int updateInterval = 60;
+    private int updateInterval = 10;
+
+    @Comment("Whether to render blocks underwater")
+    @Comment("If disabled (false), water surfaces will show biome water color directly")
+    @Comment("If enabled (true), underwater blocks will be visible with water tint applied")
+    @Comment("Disabling this can improve map readability in ocean/river areas")
+    @Comment("Default: false")
+    @CustomKey("render-underwater-blocks")
+    private boolean renderUnderwaterBlocks = false;
 }

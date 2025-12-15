@@ -88,10 +88,51 @@
 
         .player-marker {
             background: #50fa7b;
-            border: 2px solid #fff;
+            border: 3px solid #fff;
             border-radius: 50%;
-            width: 12px;
-            height: 12px;
+            width: 16px;
+            height: 16px;
+        }
+
+        .player-label {
+            position: absolute;
+            left: 22px;
+            top: -10px;
+            white-space: nowrap;
+            background: rgba(26, 26, 46, 0.9);
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #fff;
+            pointer-events: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+
+        .player-label .name {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .player-label .health-bar {
+            width: 70px;
+            height: 6px;
+            background: #44475a;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .player-label .health-fill {
+            height: 100%;
+            background: #50fa7b;
+            transition: width 0.3s ease;
+        }
+
+        .player-label .health-fill.low {
+            background: #ffb86c;
+        }
+
+        .player-label .health-fill.critical {
+            background: #ff5555;
         }
 
         .status-message {
@@ -126,7 +167,7 @@
         // Configuration
         const DISPLAY_TILE_SIZE = 512;
         const MAX_TILE_ZOOM = 5;
-        const PLAYER_UPDATE_INTERVAL = 5000;
+        const PLAYER_UPDATE_INTERVAL = 1000;
         const COORD_UPDATE_THROTTLE = 50; // ms
 
         // State
@@ -224,6 +265,40 @@
             });
         }
 
+        // Create HTML for player marker with name and health bar
+        function createPlayerMarkerHtml(player) {
+            const healthPercent = (player.health / player.maxHealth) * 100;
+            const healthClass = healthPercent <= 25 ? 'critical' : (healthPercent <= 50 ? 'low' : '');
+            return `
+                <div class="player-marker"></div>
+                <div class="player-label">
+                    <div class="name">${escapeHtml(player.name)}</div>
+                    <div class="health-bar">
+                        <div class="health-fill ${healthClass}" style="width: ${healthPercent}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update marker label with new health data
+        function updateMarkerLabel(marker, player) {
+            const healthPercent = (player.health / player.maxHealth) * 100;
+            const healthClass = healthPercent <= 25 ? 'critical' : (healthPercent <= 50 ? 'low' : '');
+            marker.setIcon(L.divIcon({
+                className: '',
+                html: createPlayerMarkerHtml(player),
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            }));
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         // Update players with incremental updates
         async function updatePlayers() {
             if (isUpdatingPlayers) return;
@@ -247,8 +322,10 @@
                         const markerData = playerMarkers.get(player.uuid);
                         markerData.marker.setLatLng([-player.z, player.x]);
                         markerData.marker.setPopupContent(
-                            `<b>${player.name}</b><br>X: ${player.x}, Y: ${player.y}, Z: ${player.z}`
+                            `<b>${player.name}</b><br>X: ${player.x}, Y: ${player.y}, Z: ${player.z}<br>Health: ${Math.round(player.health)}/${Math.round(player.maxHealth)}`
                         );
+                        // Update health bar
+                        updateMarkerLabel(markerData.marker, player);
                         markerData.world = player.world;
                         markerData.player = player;
 
@@ -262,11 +339,12 @@
                         // Create new marker
                         const marker = L.marker([-player.z, player.x], {
                             icon: L.divIcon({
-                                className: 'player-marker',
+                                className: '',
+                                html: createPlayerMarkerHtml(player),
                                 iconSize: [12, 12],
                                 iconAnchor: [6, 6]
                             })
-                        }).bindPopup(`<b>${player.name}</b><br>X: ${player.x}, Y: ${player.y}, Z: ${player.z}`);
+                        }).bindPopup(`<b>${player.name}</b><br>X: ${player.x}, Y: ${player.y}, Z: ${player.z}<br>Health: ${Math.round(player.health)}/${Math.round(player.maxHealth)}`);
 
                         if (player.world === currentWorld) {
                             marker.addTo(map);

@@ -2,6 +2,7 @@ package me.daoge.allaymap.render;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import me.daoge.allaymap.AllayMap;
 import org.allaymc.api.block.data.BlockTags;
 import org.allaymc.api.block.data.TintMethod;
 import org.allaymc.api.block.type.BlockState;
@@ -142,7 +143,11 @@ public class MapRenderer {
 
         // Check if block is underwater
         if (dimension.getBlockState(x, y + 1, z).getBlockType().hasBlockTag(BlockTags.WATER)) {
-            color = applyWaterTint(color, y, biome);
+            if (AllayMap.getInstance().getConfig().renderUnderwaterBlocks()) {
+                color = applyWaterTint(color, y, biome);
+            } else {
+                color = biome.getBiomeData().mapWaterColor();
+            }
         }
 
         // Apply shading based on height difference

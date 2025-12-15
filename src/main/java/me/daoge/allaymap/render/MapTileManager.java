@@ -91,25 +91,29 @@ public class MapTileManager {
         String dimensionName = getDimensionName(dimension);
         String key = dimensionName + "/0/" + chunkX + "_" + chunkZ;
 
-        renderingTasks.computeIfAbsent(key, k -> {
-            CompletableFuture<BufferedImage> future = renderer.renderChunk(dimension, chunkX, chunkZ)
-                .thenApply(image -> {
-                    // Save zoom level 0 (chunk tile)
-                    saveTile(dimensionName, 0, chunkX, chunkZ, image);
+        // Check if already rendering
+        if (renderingTasks.containsKey(key)) {
+            return;
+        }
 
-                    // Mark this chunk as rendered
-                    renderQueue.markChunkRendered(dimension, chunkX, chunkZ);
+        CompletableFuture<BufferedImage> future = renderer.renderChunk(dimension, chunkX, chunkZ)
+            .thenApply(image -> {
+                // Save zoom level 0 (chunk tile)
+                saveTile(dimensionName, 0, chunkX, chunkZ, image);
 
-                    return image;
-                })
-                .exceptionally(e -> {
-                    log.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
-                    return null;
-                });
+                // Mark this chunk as rendered
+                renderQueue.markChunkRendered(dimension, chunkX, chunkZ);
 
-            // Remove from map when completed to allow future re-renders
-            return future.whenComplete((result, error) -> renderingTasks.remove(key));
-        });
+                return image;
+            })
+            .exceptionally(e -> {
+                log.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
+                return null;
+            });
+
+        // Try to put the future in the map
+        renderingTasks.put(key, future);
+        future.whenComplete((result, error) -> renderingTasks.remove(key));
     }
 
     /**

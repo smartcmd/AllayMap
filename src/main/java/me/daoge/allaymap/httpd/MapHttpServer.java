@@ -147,7 +147,6 @@ public class MapHttpServer {
             }
 
             String path = exchange.getRequestURI().getPath();
-            log.debug("Tile request: {}", path);
 
             // Expected format: /tiles/{world}_{dim}/{zoom}/{x}_{z}.png
             String[] parts = path.split("/");
@@ -163,8 +162,6 @@ public class MapHttpServer {
                 String[] coordParts = coords.split("_");
                 int regionX = Integer.parseInt(coordParts[0]);
                 int regionZ = Integer.parseInt(coordParts[1]);
-
-                log.debug("Parsed tile request: world={}, zoom={}, x={}, z={}", worldDim, zoom, regionX, regionZ);
 
                 // Parse world and dimension (format: worldName_dimId)
                 // World name may contain underscores, so find the last underscore
@@ -204,7 +201,6 @@ public class MapHttpServer {
             } catch (NumberFormatException e) {
                 sendError(exchange, 400, "Invalid coordinates");
             } catch (Exception e) {
-                log.debug("Error serving tile", e);
                 sendError(exchange, 500, "Internal server error");
             }
         }
@@ -279,7 +275,9 @@ public class MapHttpServer {
                 json.append("\"world\":\"").append(escapeJson(world)).append("_").append(dim).append("\",");
                 json.append("\"x\":").append((int) loc.x()).append(",");
                 json.append("\"y\":").append((int) loc.y()).append(",");
-                json.append("\"z\":").append((int) loc.z());
+                json.append("\"z\":").append((int) loc.z()).append(",");
+                json.append("\"health\":").append(entity.getHealth()).append(",");
+                json.append("\"maxHealth\":").append(entity.getMaxHealth());
                 json.append("}");
             }
 
