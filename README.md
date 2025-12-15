@@ -1,55 +1,60 @@
-# Allay Java Plugin Template
+# AllayMap
 
-Welcome to the java plugin template for allay.
+A minimalistic and lightweight real-time world map viewer for [Allay](https://github.com/AllayMC/Allay) servers, using vanilla map rendering style.
 
-## Prerequisites
+![img.png](img.png)
 
-- Java21 or higher.
-- Allay installed.
+## Features
 
-## Getting Started
+- Real-time map rendering with vanilla Minecraft map colors
+- Multi-zoom support (6 zoom levels)
+- Biome-aware coloring (grass, foliage, water tinting)
+- Player tracking with live position updates
+- Multi-world and multi-dimension support
+- Lightweight web interface
+- Automatic chunk rendering on exploration
 
-1. **Clone this Repository**
+## Installation
 
-```bash
-git clone https://github.com/AllayMC/JavaPluginTemplate.git
-```
-   
-2. **Navigate to the Cloned Directory**
+1. Download the latest release from the releases page
+2. Place the JAR file in your Allay server's `plugins` folder
+3. Start or restart your server
+4. Access the map at `http://localhost:8080` (default port)
 
-```bash
-cd JavaPluginTemplate
-```
-   
-3. **Change Plugin Information**
+## Configuration
 
-- Rename package name from `org.allaymc.javaplugintemplate` to `your.group.name.and.pluginname`
-- Update [build.gradle.kts](build.gradle.kts) and [settings.gradle.kts](settings.gradle.kts)
-- Reload gradle
-   
-4. **Build and Run Your Plugin**
+Configuration file is located at `plugins/AllayMap/config.yml`:
 
-```bash
-gradlew shadowJar
-```
-   
-This command will produce a `.jar` file in the `build/libs` directory. 
-Copy the `.jar` file to the `plugins` directory of your allay server.
-Start the allay server and check the logs to ensure your plugin loads and operates
-as expected.
+```yaml
+# Port number for the web interface
+# The map will be accessible at http://localhost:<port>
+# Make sure this port is not used by other applications
+# Valid range: 1-65535 (ports below 1024 may require admin privileges)
+# Default: 8080
+http-port: 8080
 
-5. **Test Your Plugin in Gradle**
-
-```bash
-gradlew runServer
+# Interval in seconds between processing dirty (modified) chunks
+# Lower values = faster map updates but higher CPU usage
+# Higher values = slower map updates but lower CPU usage
+# Recommended: 30-120 seconds depending on server performance
+# Default: 60
+update-interval: 60
 ```
 
-This command will start an allay server with your plugin loaded.
-Then close allay server by clicking `X` in the dashboard window.
+### Configuration Options
 
-## Documentation
+| Option            | Default | Description                                                                                 |
+|-------------------|---------|---------------------------------------------------------------------------------------------|
+| `http-port`       | 8080    | Port for the web interface. The map will be accessible at `http://localhost:<port>`         |
+| `update-interval` | 60      | Interval in seconds between processing modified chunks. Lower = faster updates but more CPU |
 
-For a deeper dive into the Allay API and its functionalities, please refer to our [documentation](https://docs.allaymc.org) (WIP).
+## Usage
+
+- Open `http://localhost:8080` in your browser
+- Use mouse wheel to zoom in/out
+- Click and drag to pan the map
+- Select different worlds/dimensions from the dropdown
+- Click on a player name to center the map on their location
 
 ## License
 
