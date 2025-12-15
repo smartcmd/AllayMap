@@ -31,7 +31,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MapTileManager {
 
     public static final int CHUNK_TILE_SIZE = 16; // Each chunk tile is 16x16 pixels
-    public static final int MAX_ZOOM = 5;  // Max zoom level (32x32 chunks per tile at zoom 5)
 
     /**
      * Get the tile size for a specific zoom level.

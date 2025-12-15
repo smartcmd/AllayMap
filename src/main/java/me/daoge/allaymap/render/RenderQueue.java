@@ -3,8 +3,8 @@ package me.daoge.allaymap.render;
 import lombok.extern.slf4j.Slf4j;
 import org.allaymc.api.world.Dimension;
 
-import java.util.Map;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 

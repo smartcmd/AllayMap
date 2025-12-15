@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import me.daoge.allaymap.render.RenderQueue;
 import org.allaymc.api.eventbus.EventHandler;
-import org.allaymc.api.eventbus.event.world.ChunkLoadEvent;
 import org.allaymc.api.eventbus.event.block.BlockPlaceEvent;
+import org.allaymc.api.eventbus.event.world.ChunkLoadEvent;
 
 /**
  * Listens for world events and marks affected regions as dirty for re-rendering.

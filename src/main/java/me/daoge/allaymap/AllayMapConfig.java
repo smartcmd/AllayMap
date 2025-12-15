@@ -3,7 +3,6 @@ package me.daoge.allaymap;
 import eu.okaeri.configs.OkaeriConfig;
 import eu.okaeri.configs.annotation.Comment;
 import eu.okaeri.configs.annotation.CustomKey;
-import eu.okaeri.configs.annotation.Header;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 
