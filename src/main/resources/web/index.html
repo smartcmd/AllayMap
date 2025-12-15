@@ -203,7 +203,7 @@
             });
 
             tileLayer.addTo(map);
-            map.setView([spawnZ, spawnX], 2);
+            map.setView([-spawnZ, spawnX], 2);
 
             // Update player markers for new world
             updatePlayerMarkersVisibility();
@@ -245,7 +245,7 @@
                     if (playerMarkers.has(player.uuid)) {
                         // Update existing marker position
                         const markerData = playerMarkers.get(player.uuid);
-                        markerData.marker.setLatLng([player.z, player.x]);
+                        markerData.marker.setLatLng([-player.z, player.x]);
                         markerData.marker.setPopupContent(
                             `<b>${player.name}</b><br>X: ${player.x}, Y: ${player.y}, Z: ${player.z}`
                         );
@@ -260,7 +260,7 @@
                         }
                     } else {
                         // Create new marker
-                        const marker = L.marker([player.z, player.x], {
+                        const marker = L.marker([-player.z, player.x], {
                             icon: L.divIcon({
                                 className: 'player-marker',
                                 iconSize: [12, 12],
@@ -298,7 +298,7 @@
                         `;
                         item.onclick = () => {
                             if (player.world === currentWorld) {
-                                map.setView([player.z, player.x], MAX_TILE_ZOOM);
+                                map.setView([-player.z, player.x], MAX_TILE_ZOOM);
                             } else {
                                 document.getElementById('world-select').value = player.world;
                                 selectWorld(player.world, player.x, player.z);
@@ -322,7 +322,7 @@
             lastCoordUpdate = now;
 
             const x = Math.floor(e.latlng.lng);
-            const z = Math.floor(e.latlng.lat);
+            const z = -Math.floor(e.latlng.lat);
             document.getElementById('coords').textContent = `X: ${x}, Z: ${z}`;
         });
 
