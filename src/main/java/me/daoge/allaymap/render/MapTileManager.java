@@ -94,20 +94,16 @@ public class MapTileManager {
         String dimensionName = getDimensionName(dimension);
         String key = "render:" + getTilePath(dimensionName, 0, chunkX, chunkZ);
 
-        tileTasks.computeIfAbsent(key, k -> {
-            CompletableFuture<BufferedImage> future = renderer.renderChunk(dimension, chunkX, chunkZ)
-                    .thenApply(image -> {
-                        saveTile(dimensionName, 0, chunkX, chunkZ, image);
-                        return image;
-                    })
-                    .exceptionally(e -> {
-                        logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
-                        return null;
-                    });
-
-            future.whenComplete((result, error) -> tileTasks.remove(key));
-            return future;
-        });
+        tileTasks.computeIfAbsent(key, k -> renderer.renderChunk(dimension, chunkX, chunkZ)
+                .thenApply(image -> {
+                    saveTile(dimensionName, 0, chunkX, chunkZ, image);
+                    return image;
+                })
+                .exceptionally(e -> {
+                    logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
+                    return null;
+                })
+        ).whenComplete((result, error) -> tileTasks.remove(key));
     }
 
     public int getTileTaskCount() {
@@ -148,9 +144,8 @@ public class MapTileManager {
                 future = CompletableFuture.completedFuture(createEmptyTile());
             }
 
-            future.whenComplete((result, error) -> tileTasks.remove(loadKey));
             return future;
-        });
+        }).whenComplete((result, error) -> tileTasks.remove(loadKey));
     }
 
     /**
