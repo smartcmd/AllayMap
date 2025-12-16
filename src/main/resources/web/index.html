@@ -182,6 +182,57 @@
         .health-fill.high { background: var(--success); }
         .health-fill.medium { background: var(--warning); }
         .health-fill.low { background: var(--danger); }
+
+        #share-btn {
+            position: absolute;
+            bottom: 60px; /* 位于坐标显示上方 */
+            left: 20px;
+            z-index: 1000;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--panel-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+        }
+
+        #share-btn:hover {
+            background: var(--border);
+            transform: translateY(-2px);
+            color: var(--accent);
+        }
+
+        #share-btn:active {
+            transform: translateY(0);
+        }
+
+        /* 提示气泡 (默认隐藏) */
+        #share-btn .tooltip {
+            position: absolute;
+            left: 50px;
+            background: var(--success);
+            color: #1a1a2e;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            transform: translateX(10px);
+        }
+
+        #share-btn.copied .tooltip {
+            opacity: 1;
+            transform: translateX(0);
+        }
     </style>
 </head>
 <body>
@@ -198,6 +249,14 @@
         <div style="padding:10px; color: #6272a4; font-size: 12px;">Waiting for data...</div>
     </div>
 </div>
+
+<button id="share-btn" title="Copy Link to Current View">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+    </svg>
+    <span class="tooltip">Link Copied!</span>
+</button>
 
 <div class="coords" id="coords" style="opacity: 0;">X: 0, Z: 0</div>
 
@@ -226,7 +285,8 @@
             this.dom = {
                 worldSelect: document.getElementById('world-select'),
                 playerList: document.getElementById('player-list'),
-                coords: document.getElementById('coords')
+                coords: document.getElementById('coords'),
+                shareBtn: document.getElementById('share-btn')
             };
 
             this.initMap();
@@ -274,6 +334,8 @@
                 }
             });
 
+            this.dom.shareBtn.addEventListener('click', () => this.copyPermalink());
+
             // Coords Update (using requestAnimationFrame for performance)
             this.map.on('mousemove', (e) => {
                 if (this.coordReq) cancelAnimationFrame(this.coordReq);
@@ -287,6 +349,33 @@
 
             this.map.on('mouseout', () => {
                 this.dom.coords.style.opacity = '0';
+            });
+        }
+
+        copyPermalink() {
+            const center = this.map.getCenter();
+            const zoom = this.map.getZoom();
+            const x = Math.round(center.lng);
+            const z = Math.round(-center.lat); // Leaflet Lat 是反转的 Z
+            const world = this.state.currentWorld;
+
+            // 构建 URL
+            const url = new URL(window.location.href);
+            url.searchParams.set('world', world);
+            url.searchParams.set('x', x);
+            url.searchParams.set('z', z);
+            url.searchParams.set('zoom', zoom);
+
+            // 复制到剪贴板
+            navigator.clipboard.writeText(url.toString()).then(() => {
+                // 显示成功提示
+                this.dom.shareBtn.classList.add('copied');
+                setTimeout(() => {
+                    this.dom.shareBtn.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                alert('Failed to copy URL to clipboard');
             });
         }
 
@@ -309,6 +398,18 @@
                     return;
                 }
 
+                // 解析 URL 参数
+                const params = new URLSearchParams(window.location.search);
+                const paramWorld = params.get('world');
+                const paramX = params.get('x');
+                const paramZ = params.get('z');
+                const paramZoom = params.get('zoom');
+
+                let initialWorld = null;
+                let initialX = 0;
+                let initialZ = 0;
+                let initialZoom = 2; // 默认缩放
+
                 data.worlds.forEach((w, index) => {
                     const opt = document.createElement('option');
                     opt.value = w.id;
@@ -317,27 +418,54 @@
                     opt.dataset.z = w.spawn.z;
                     this.dom.worldSelect.appendChild(opt);
 
-                    // Default select first world
-                    if (index === 0) this.setWorld(w.id, w.spawn.x, w.spawn.z);
+                    // 逻辑：如果 URL 指定了世界且存在，则使用它；否则默认使用第一个世界
+                    if (paramWorld && w.id === paramWorld) {
+                        initialWorld = w.id;
+                        // 如果 URL 有坐标，用 URL 的，否则用出生点
+                        initialX = paramX ? parseFloat(paramX) : w.spawn.x;
+                        initialZ = paramZ ? parseFloat(paramZ) : w.spawn.z;
+                        initialZoom = paramZoom ? parseFloat(paramZoom) : this.config.maxZoom;
+
+                        // 同步 Select 的选中状态
+                        setTimeout(() => { this.dom.worldSelect.value = w.id; }, 0);
+                    } else if (index === 0 && !initialWorld) {
+                        // 默认回退
+                        initialWorld = w.id;
+                        initialX = w.spawn.x;
+                        initialZ = w.spawn.z;
+                    }
                 });
+
+                // 初始化地图视图
+                if (initialWorld) {
+                    this.setWorld(initialWorld, initialX, initialZ, initialZoom);
+                }
+
             } catch (e) {
                 console.error('World load failed', e);
-                setTimeout(() => this.loadWorlds(), 5000); // Retry
+                setTimeout(() => this.loadWorlds(), 5000);
             }
         }
 
-        setWorld(id, spawnX, spawnZ) {
-            if (this.state.currentWorld === id) return;
+        setWorld(id, x, z, zoom = 2) {
+            // 即使是同一个世界，如果是通过 URL 跳转来的，我们也允许重新定位视图
+            // 但如果是普通切换，我们通常只想加载瓦片
+
+            const isWorldChanged = this.state.currentWorld !== id;
             this.state.currentWorld = id;
 
-            // Refresh tiles
-            this.tileLayer.redraw();
+            // 刷新 Select UI (防止程序调用 setWorld 时 UI 没变)
+            if (this.dom.worldSelect.value !== id) {
+                this.dom.worldSelect.value = id;
+            }
 
-            // Fly to spawn
-            this.map.setView([-spawnZ, spawnX], 2);
+            if (isWorldChanged) {
+                this.tileLayer.redraw();
+                this.refreshMarkerVisibility();
+            }
 
-            // Update markers visibility
-            this.refreshMarkerVisibility();
+            // 移动视角
+            this.map.setView([-z, x], zoom);
         }
 
         async updatePlayers() {
