@@ -18,9 +18,6 @@ public class RenderQueue {
     // Map of dimension -> set of dirty chunk coordinates (chunkX << 32 | chunkZ)
     private final Map<Dimension, Set<Long>> dirtyChunks = new ConcurrentHashMap<>();
 
-    // Track chunks that have already been rendered (to avoid re-rendering unchanged reloaded chunks)
-    private final Map<Dimension, Set<Long>> renderedChunks = new ConcurrentHashMap<>();
-
     /**
      * Mark a chunk as dirty (needs re-rendering).
      */
@@ -30,36 +27,11 @@ public class RenderQueue {
     }
 
     /**
-     * Mark a chunk as dirty only if it hasn't been rendered yet.
-     */
-    public void markChunkDirtyIfNew(Dimension dimension, int chunkX, int chunkZ) {
-        long key = HashUtils.hashXZ(chunkX, chunkZ);
-
-        // Use computeIfAbsent on renderedChunks to atomically check and potentially mark dirty
-        // If the key is already in renderedChunks, we don't need to mark dirty
-        Set<Long> rendered = this.renderedChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet());
-
-        // putIfAbsent semantics: only mark dirty if not already rendered
-        // We use a trick: try to add to a temporary tracking, but actual logic uses contains
-        if (!rendered.contains(key)) {
-            getDirtyChunkSet(dimension).add(key);
-        }
-    }
-
-    /**
      * Get or create the dirty chunk set for a dimension.
      * Always returns a valid set that is safe to add to.
      */
     private Set<Long> getDirtyChunkSet(Dimension dimension) {
         return this.dirtyChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet());
-    }
-
-    /**
-     * Mark a chunk as rendered (used to track already-rendered chunks).
-     */
-    public void markChunkRendered(Dimension dimension, int chunkX, int chunkZ) {
-        long key = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
-        this.renderedChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet()).add(key);
     }
 
     /**
@@ -95,6 +67,5 @@ public class RenderQueue {
 
     public void removeDimension(Dimension dimension) {
         this.dirtyChunks.remove(dimension);
-        this.renderedChunks.remove(dimension);
     }
 }

@@ -21,7 +21,7 @@ public class WorldEventListener {
         var dimension = event.getDimension();
         // Only mark dirty if this region hasn't been rendered yet
         // This avoids re-rendering when chunks are unloaded and reloaded
-        renderQueue.markChunkDirtyIfNew(dimension, chunk.getX(), chunk.getZ());
+        renderQueue.markChunkDirty(dimension, chunk.getX(), chunk.getZ());
     }
 
     @EventHandler

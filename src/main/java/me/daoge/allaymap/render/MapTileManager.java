@@ -98,7 +98,7 @@ public class MapTileManager {
      */
     private void renderAndSaveChunk(Dimension dimension, int chunkX, int chunkZ) {
         String dimensionName = getDimensionName(dimension);
-        String key = dimensionName + "/0/" + chunkX + "_" + chunkZ;
+        String key = getTilePath(dimensionName, 0, chunkX, chunkZ).toString();
 
         // Check if already rendering
         if (renderingTasks.containsKey(key)) {
@@ -109,9 +109,6 @@ public class MapTileManager {
             .thenApply(image -> {
                 // Save zoom level 0 (chunk tile)
                 saveTile(dimensionName, 0, chunkX, chunkZ, image);
-
-                // Mark this chunk as rendered
-                renderQueue.markChunkRendered(dimension, chunkX, chunkZ);
 
                 return image;
             })
@@ -139,7 +136,7 @@ public class MapTileManager {
         }
 
         // For zoom 0, check if currently rendering first
-        String key = dimensionName + "/0/" + tileX + "_" + tileZ;
+        String key = getTilePath(dimensionName, zoom, tileX, tileZ).toString();
 
         // Check if this chunk is currently being rendered
         CompletableFuture<BufferedImage> rendering = renderingTasks.get(key);
@@ -187,7 +184,6 @@ public class MapTileManager {
      * Generated on-the-fly without caching.
      */
     private CompletableFuture<BufferedImage> generateZoomedTile(Dimension dimension, int tileX, int tileZ, int zoom) {
-
         int resultSize = getTileSize(zoom);
         int sourceZoom = zoom - 1;
         int x2 = tileX * 2;
