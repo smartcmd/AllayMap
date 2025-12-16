@@ -3,10 +3,9 @@ package me.daoge.allaymap;
 import eu.okaeri.configs.ConfigManager;
 import eu.okaeri.configs.yaml.snakeyaml.YamlSnakeYamlConfigurer;
 import lombok.Getter;
-import me.daoge.allaymap.httpd.MapHttpServer;
-import me.daoge.allaymap.listener.WorldEventListener;
 import me.daoge.allaymap.render.MapTileManager;
 import org.allaymc.api.plugin.Plugin;
+import org.allaymc.api.registry.Registries;
 import org.allaymc.api.server.Server;
 
 import java.io.IOException;
@@ -23,14 +22,13 @@ public class AllayMap extends Plugin {
 
     @Getter
     private static AllayMap instance;
+    private AMConfig config;
+    private MapTileManager tileManager;
+    private AMHttpServer httpServer;
 
     {
         instance = this;
     }
-
-    private AllayMapConfig config;
-    private MapTileManager tileManager;
-    private MapHttpServer httpServer;
 
     @Override
     public void onLoad() {
@@ -44,7 +42,7 @@ public class AllayMap extends Plugin {
             this.pluginLogger.error("Failed to create data directory", e);
         }
 
-        this.config = ConfigManager.create(AllayMapConfig.class, cfg -> {
+        this.config = ConfigManager.create(AMConfig.class, cfg -> {
             cfg.withConfigurer(new YamlSnakeYamlConfigurer());
             cfg.withBindFile(dataDir.resolve("config.yml"));
             cfg.withRemoveOrphans(true);
@@ -59,10 +57,10 @@ public class AllayMap extends Plugin {
         this.tileManager = new MapTileManager(getPluginContainer().dataFolder());
 
         // Register world event listener for chunk/block changes
-        Server.getInstance().getEventBus().registerListener(new WorldEventListener(this.tileManager.getRenderQueue()));
+        Server.getInstance().getEventBus().registerListener(new AMEventListener(this.tileManager.getRenderQueue()));
 
         // Start HTTP server
-        this.httpServer = new MapHttpServer(this, this.tileManager, this.config.httpPort());
+        this.httpServer = new AMHttpServer(this, this.tileManager, this.config.httpPort());
         try {
             this.httpServer.start();
             this.pluginLogger.info("AllayMap web interface available at http://localhost:{}", this.config.httpPort());
@@ -78,8 +76,7 @@ public class AllayMap extends Plugin {
     }
 
     private void registerCommands() {
-        // TODO: Add commands for manual rendering, cache clearing, etc.
-        // For now, the web interface handles everything
+        Registries.COMMANDS.register(new AMCommand());
     }
 
     @Override

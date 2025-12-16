@@ -1,4 +1,4 @@
-package me.daoge.allaymap.listener;
+package me.daoge.allaymap;
 
 import lombok.RequiredArgsConstructor;
 import me.daoge.allaymap.render.RenderQueue;
@@ -11,7 +11,7 @@ import org.allaymc.api.eventbus.event.world.WorldUnloadEvent;
  * Listens for world events and marks affected regions as dirty for re-rendering.
  */
 @RequiredArgsConstructor
-public class WorldEventListener {
+public class AMEventListener {
 
     private final RenderQueue renderQueue;
 

@@ -45,14 +45,24 @@ public class RenderQueue {
 
     /**
      * Get and clear all dirty chunks for a dimension.
-     * Atomically swaps the set with a new empty one to avoid race conditions.
      */
     public Set<Long> pollDirtyChunks(Dimension dimension) {
         var result = this.dirtyChunks.put(dimension, ConcurrentHashMap.newKeySet());
         return result == null ? Collections.emptySet() : result;
     }
 
+    /**
+     * Removes all tracked dirty chunks for the specified dimension.
+     */
     public void removeDimension(Dimension dimension) {
         this.dirtyChunks.remove(dimension);
+    }
+
+    /**
+     * Returns the number of dimensions that currently have dirty chunks
+     * needing to be re-rendered.
+     */
+    public int getDirtyChunkCount() {
+        return this.dirtyChunks.size();
     }
 }

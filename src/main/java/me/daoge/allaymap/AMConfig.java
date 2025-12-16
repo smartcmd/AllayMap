@@ -11,7 +11,7 @@ import lombok.experimental.Accessors;
  */
 @Getter
 @Accessors(fluent = true)
-public class AllayMapConfig extends OkaeriConfig {
+public class AMConfig extends OkaeriConfig {
 
     @Comment("Port number for the web interface")
     @Comment("The map will be accessible at http://localhost:<port>")

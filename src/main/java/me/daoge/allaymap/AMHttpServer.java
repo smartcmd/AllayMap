@@ -1,11 +1,9 @@
-package me.daoge.allaymap.httpd;
+package me.daoge.allaymap;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
-import me.daoge.allaymap.AllayMap;
 import me.daoge.allaymap.render.MapTileManager;
 import org.allaymc.api.server.Server;
 import org.allaymc.api.world.Dimension;
@@ -29,7 +27,7 @@ import java.util.concurrent.Executors;
 /**
  * Embedded HTTP server for serving map tiles and web interface.
  */
-public class MapHttpServer {
+public class AMHttpServer {
 
     private static final Map<String, String> MIME_TYPES = new HashMap<>();
 
@@ -52,7 +50,7 @@ public class MapHttpServer {
     private final MapTileManager tileManager;
     private HttpServer server;
 
-    public MapHttpServer(AllayMap plugin, MapTileManager tileManager, int port) {
+    public AMHttpServer(AllayMap plugin, MapTileManager tileManager, int port) {
         this.plugin = plugin;
         this.tileManager = tileManager;
         this.port = port;

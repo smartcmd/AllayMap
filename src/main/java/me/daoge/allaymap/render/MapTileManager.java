@@ -1,7 +1,6 @@
 package me.daoge.allaymap.render;
 
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import me.daoge.allaymap.AllayMap;
 import org.allaymc.api.server.Server;
 import org.allaymc.api.utils.hash.HashUtils;
@@ -25,15 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MapTileManager {
 
     private static final int CHUNK_TILE_SIZE = 16;
-
-    /**
-     * Get the tile size for a specific zoom level.
-     * Tile size doubles each zoom level: 16, 32, 64, 128, 256, 512.
-     */
-    private static int getTileSize(int zoom) {
-        return CHUNK_TILE_SIZE << zoom;
-    }
-
     private final Logger logger;
     private final Path tilesDirectory;
     private final MapRenderer renderer;
@@ -62,6 +52,14 @@ public class MapTileManager {
             return true; // Continue running
         }, updateInterval * 20);
         this.logger.info("Scheduled map render task every {} seconds", updateInterval);
+    }
+
+    /**
+     * Get the tile size for a specific zoom level.
+     * Tile size doubles each zoom level: 16, 32, 64, 128, 256, 512.
+     */
+    private static int getTileSize(int zoom) {
+        return CHUNK_TILE_SIZE << zoom;
     }
 
     /**
@@ -98,18 +96,22 @@ public class MapTileManager {
 
         tileTasks.computeIfAbsent(key, k -> {
             CompletableFuture<BufferedImage> future = renderer.renderChunk(dimension, chunkX, chunkZ)
-                .thenApply(image -> {
-                    saveTile(dimensionName, 0, chunkX, chunkZ, image);
-                    return image;
-                })
-                .exceptionally(e -> {
-                    logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
-                    return null;
-                });
+                    .thenApply(image -> {
+                        saveTile(dimensionName, 0, chunkX, chunkZ, image);
+                        return image;
+                    })
+                    .exceptionally(e -> {
+                        logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
+                        return null;
+                    });
 
             future.whenComplete((result, error) -> tileTasks.remove(key));
             return future;
         });
+    }
+
+    public int getTileTaskCount() {
+        return tileTasks.size();
     }
 
     /**
@@ -167,32 +169,32 @@ public class MapTileManager {
         CompletableFuture<BufferedImage> tile11 = getTile(dimension, x2 + 1, z2 + 1, sourceZoom);
 
         return CompletableFuture.allOf(tile00, tile10, tile01, tile11)
-            .thenApply(v -> {
-                BufferedImage result = new BufferedImage(resultSize, resultSize, BufferedImage.TYPE_INT_ARGB);
-                Graphics2D g = result.createGraphics();
+                .thenApply(v -> {
+                    BufferedImage result = new BufferedImage(resultSize, resultSize, BufferedImage.TYPE_INT_ARGB);
+                    Graphics2D g = result.createGraphics();
 
-                int halfResult = resultSize / 2;
-                try {
-                    BufferedImage img00 = tile00.join();
-                    BufferedImage img10 = tile10.join();
-                    BufferedImage img01 = tile01.join();
-                    BufferedImage img11 = tile11.join();
+                    int halfResult = resultSize / 2;
+                    try {
+                        BufferedImage img00 = tile00.join();
+                        BufferedImage img10 = tile10.join();
+                        BufferedImage img01 = tile01.join();
+                        BufferedImage img11 = tile11.join();
 
-                    // Draw each source tile scaled to quarter of result size
-                    g.drawImage(img00, 0, 0, halfResult, halfResult, 0, 0, img00.getWidth(), img00.getHeight(), null);
-                    g.drawImage(img10, halfResult, 0, resultSize, halfResult, 0, 0, img10.getWidth(), img10.getHeight(), null);
-                    g.drawImage(img01, 0, halfResult, halfResult, resultSize, 0, 0, img01.getWidth(), img01.getHeight(), null);
-                    g.drawImage(img11, halfResult, halfResult, resultSize, resultSize, 0, 0, img11.getWidth(), img11.getHeight(), null);
-                } finally {
-                    g.dispose();
-                }
+                        // Draw each source tile scaled to quarter of result size
+                        g.drawImage(img00, 0, 0, halfResult, halfResult, 0, 0, img00.getWidth(), img00.getHeight(), null);
+                        g.drawImage(img10, halfResult, 0, resultSize, halfResult, 0, 0, img10.getWidth(), img10.getHeight(), null);
+                        g.drawImage(img01, 0, halfResult, halfResult, resultSize, 0, 0, img01.getWidth(), img01.getHeight(), null);
+                        g.drawImage(img11, halfResult, halfResult, resultSize, resultSize, 0, 0, img11.getWidth(), img11.getHeight(), null);
+                    } finally {
+                        g.dispose();
+                    }
 
-                return result;
-            })
-            .exceptionally(e -> {
-                logger.error("Failed to generate zoom {} tile ({}, {})", zoom, tileX, tileZ, e);
-                return createEmptyTile(zoom);
-            });
+                    return result;
+                })
+                .exceptionally(e -> {
+                    logger.error("Failed to generate zoom {} tile ({}, {})", zoom, tileX, tileZ, e);
+                    return createEmptyTile(zoom);
+                });
     }
 
     /**

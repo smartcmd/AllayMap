@@ -1,7 +1,6 @@
 package me.daoge.allaymap.render;
 
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 import me.daoge.allaymap.AllayMap;
 import org.allaymc.api.block.data.BlockTags;
 import org.allaymc.api.block.data.TintMethod;
@@ -65,6 +64,43 @@ public class MapRenderer {
     @SneakyThrows
     private static BufferedImage readColormap(String file) {
         return ImageIO.read(Objects.requireNonNull(MapRenderer.class.getClassLoader().getResource(file)));
+    }
+
+    /**
+     * Make a color brighter
+     */
+    private static Color brighter(Color source, double factor) {
+        int r = source.getRed();
+        int g = source.getGreen();
+        int b = source.getBlue();
+        int alpha = source.getAlpha();
+
+        int i = (int) (1.0 / (1.0 - factor));
+        if (r == 0 && g == 0 && b == 0) {
+            return new Color(i, i, i, alpha);
+        }
+        if (r > 0 && r < i) r = i;
+        if (g > 0 && g < i) g = i;
+        if (b > 0 && b < i) b = i;
+
+        return new Color(
+                Math.min((int) (r / factor), 255),
+                Math.min((int) (g / factor), 255),
+                Math.min((int) (b / factor), 255),
+                alpha
+        );
+    }
+
+    /**
+     * Make a color darker
+     */
+    private static Color darker(Color source, double factor) {
+        return new Color(
+                Math.max((int) (source.getRed() * factor), 0),
+                Math.max((int) (source.getGreen() * factor), 0),
+                Math.max((int) (source.getBlue() * factor), 0),
+                source.getAlpha()
+        );
     }
 
     /**
@@ -301,51 +337,15 @@ public class MapRenderer {
         }
 
         return new Color(
-            Math.clamp(finalRed, 0, 255),
-            Math.clamp(finalGreen, 0, 255),
-            Math.clamp(finalBlue, 0, 255)
-        );
-    }
-
-    /**
-     * Make a color brighter
-     */
-    private static Color brighter(Color source, double factor) {
-        int r = source.getRed();
-        int g = source.getGreen();
-        int b = source.getBlue();
-        int alpha = source.getAlpha();
-
-        int i = (int) (1.0 / (1.0 - factor));
-        if (r == 0 && g == 0 && b == 0) {
-            return new Color(i, i, i, alpha);
-        }
-        if (r > 0 && r < i) r = i;
-        if (g > 0 && g < i) g = i;
-        if (b > 0 && b < i) b = i;
-
-        return new Color(
-            Math.min((int) (r / factor), 255),
-            Math.min((int) (g / factor), 255),
-            Math.min((int) (b / factor), 255),
-            alpha
-        );
-    }
-
-    /**
-     * Make a color darker
-     */
-    private static Color darker(Color source, double factor) {
-        return new Color(
-            Math.max((int) (source.getRed() * factor), 0),
-            Math.max((int) (source.getGreen() * factor), 0),
-            Math.max((int) (source.getBlue() * factor), 0),
-            source.getAlpha()
+                Math.clamp(finalRed, 0, 255),
+                Math.clamp(finalGreen, 0, 255),
+                Math.clamp(finalBlue, 0, 255)
         );
     }
 
     /**
      * Helper record to store height search results
      */
-    private record HeightResult(int y, BlockState state) {}
+    private record HeightResult(int y, BlockState state) {
+    }
 }
