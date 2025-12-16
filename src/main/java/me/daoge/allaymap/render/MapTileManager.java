@@ -115,7 +115,9 @@ public class MapTileManager {
      */
     public CompletableFuture<BufferedImage> getTile(Dimension dimension, int tileX, int tileZ, int zoom) {
         if (zoom > 0) {
-            return generateZoomedTile(dimension, tileX, tileZ, zoom);
+            var zoomKey = "zoom:" + getTilePath(getDimensionName(dimension), zoom, tileX, tileZ);
+            return tileTasks.computeIfAbsent(zoomKey, k -> generateZoomedTile(dimension, tileX, tileZ, zoom))
+                    .whenComplete((result, error) -> tileTasks.remove(zoomKey));
         }
 
         var tilePath = getTilePath(getDimensionName(dimension), 0, tileX, tileZ);

@@ -63,6 +63,6 @@ public class RenderQueue {
      * needing to be re-rendered.
      */
     public int getDirtyChunkCount() {
-        return this.dirtyChunks.size();
+        return this.dirtyChunks.values().stream().mapToInt(Set::size).sum();
     }
 }
