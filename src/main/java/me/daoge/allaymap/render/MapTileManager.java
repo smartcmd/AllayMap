@@ -35,13 +35,11 @@ public class MapTileManager {
     }
 
     private final Logger logger;
-    @Getter
     private final Path tilesDirectory;
     private final MapRenderer renderer;
     @Getter
     private final RenderQueue renderQueue;
-    private final Map<String, CompletableFuture<BufferedImage>> renderingTasks;
-    private final Map<String, CompletableFuture<BufferedImage>> tileLoadingTasks;
+    private final Map<String, CompletableFuture<BufferedImage>> tileTasks;
 
     public MapTileManager(Path dataDir) {
         var plugin = AllayMap.getInstance();
@@ -49,8 +47,7 @@ public class MapTileManager {
         this.tilesDirectory = dataDir.resolve("tiles");
         this.renderer = new MapRenderer();
         this.renderQueue = new RenderQueue();
-        this.renderingTasks = new ConcurrentHashMap<>();
-        this.tileLoadingTasks = new ConcurrentHashMap<>();
+        this.tileTasks = new ConcurrentHashMap<>();
 
         try {
             Files.createDirectories(tilesDirectory);
@@ -71,7 +68,7 @@ public class MapTileManager {
      * Process all dirty chunks in the render queue.
      * Should be called periodically by a scheduled task.
      */
-    public void processDirtyChunks() {
+    private void processDirtyChunks() {
         for (var world : Server.getInstance().getWorldPool().getWorlds().values()) {
             for (var dimension : world.getDimensions().values()) {
                 Set<Long> dirtyChunks = renderQueue.pollDirtyChunks(dimension);
@@ -94,89 +91,64 @@ public class MapTileManager {
 
     /**
      * Render a chunk and save it to disk.
-     * This method is thread-safe and ensures each chunk is only rendered once at a time.
      */
     private void renderAndSaveChunk(Dimension dimension, int chunkX, int chunkZ) {
         String dimensionName = getDimensionName(dimension);
-        String key = getTilePath(dimensionName, 0, chunkX, chunkZ).toString();
+        String key = "render:" + getTilePath(dimensionName, 0, chunkX, chunkZ);
 
-        // Check if already rendering
-        if (renderingTasks.containsKey(key)) {
-            return;
-        }
+        tileTasks.computeIfAbsent(key, k -> {
+            CompletableFuture<BufferedImage> future = renderer.renderChunk(dimension, chunkX, chunkZ)
+                .thenApply(image -> {
+                    saveTile(dimensionName, 0, chunkX, chunkZ, image);
+                    return image;
+                })
+                .exceptionally(e -> {
+                    logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
+                    return null;
+                });
 
-        CompletableFuture<BufferedImage> future = renderer.renderChunk(dimension, chunkX, chunkZ)
-            .thenApply(image -> {
-                // Save zoom level 0 (chunk tile)
-                saveTile(dimensionName, 0, chunkX, chunkZ, image);
-
-                return image;
-            })
-            .exceptionally(e -> {
-                logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
-                return null;
-            });
-
-        // Try to put the future in the map
-        renderingTasks.put(key, future);
-        future.whenComplete((result, error) -> renderingTasks.remove(key));
+            future.whenComplete((result, error) -> tileTasks.remove(key));
+            return future;
+        });
     }
 
     /**
-     * Get a tile for a specific position and zoom level.
-     * At zoom 0, coordinates are chunk coordinates and tiles are cached.
-     * At higher zoom levels, tiles are generated on-the-fly from lower zoom tiles.
+     * Get a tile for a specific position and zoom level. This method should be thread-safe.
      */
     public CompletableFuture<BufferedImage> getTile(Dimension dimension, int tileX, int tileZ, int zoom) {
-        String dimensionName = getDimensionName(dimension);
-
-        // For zoom > 0, always generate on-the-fly (no caching)
         if (zoom > 0) {
             return generateZoomedTile(dimension, tileX, tileZ, zoom);
         }
 
-        // For zoom 0, check if currently rendering first
-        String key = getTilePath(dimensionName, zoom, tileX, tileZ).toString();
+        var tilePath = getTilePath(getDimensionName(dimension), 0, tileX, tileZ);
 
-        // Check if this chunk is currently being rendered
-        CompletableFuture<BufferedImage> rendering = renderingTasks.get(key);
-        if (rendering != null) {
-            return rendering;
+        // First check if there's an ongoing render task for this tile
+        var renderKey = "render:" + tilePath;
+        var renderTask = tileTasks.get(renderKey);
+        if (renderTask != null) {
+            return renderTask;
         }
 
-        // Check if already loading
-        CompletableFuture<BufferedImage> existing = tileLoadingTasks.get(key);
-        if (existing != null) {
-            return existing;
-        }
+        // Use computeIfAbsent for atomic load task creation
+        var loadKey = "load:" + tilePath;
+        return tileTasks.computeIfAbsent(loadKey, k -> {
+            CompletableFuture<BufferedImage> future;
+            if (Files.exists(tilePath)) {
+                future = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        return ImageIO.read(tilePath.toFile());
+                    } catch (IOException e) {
+                        logger.warn("Failed to load cached tile {}", tilePath, e);
+                        return createEmptyTile(0);
+                    }
+                }, Server.getInstance().getVirtualThreadPool());
+            } else {
+                future = CompletableFuture.completedFuture(createEmptyTile());
+            }
 
-        // Try to load from disk
-        Path tilePath = getTilePath(dimensionName, 0, tileX, tileZ);
-        CompletableFuture<BufferedImage> future;
-
-        if (Files.exists(tilePath)) {
-            future = CompletableFuture.supplyAsync(() -> {
-                try {
-                    return ImageIO.read(tilePath.toFile());
-                } catch (IOException e) {
-                    logger.warn("Failed to load cached tile {}", tilePath, e);
-                    return createEmptyTile(0);
-                }
-            }, Server.getInstance().getVirtualThreadPool());
-        } else {
-            future = CompletableFuture.completedFuture(createEmptyTile());
-        }
-
-        // Put into map first, then add cleanup callback
-        // This avoids race condition where callback runs before putIfAbsent
-        CompletableFuture<BufferedImage> previous = tileLoadingTasks.putIfAbsent(key, future);
-        if (previous != null) {
-            return previous;
-        }
-
-        // Successfully added to map, now register cleanup callback
-        future.whenComplete((result, error) -> tileLoadingTasks.remove(key));
-        return future;
+            future.whenComplete((result, error) -> tileTasks.remove(loadKey));
+            return future;
+        });
     }
 
     /**
