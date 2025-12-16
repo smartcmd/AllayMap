@@ -46,6 +46,13 @@ update-interval: 60
 # Disabling this can improve map readability in ocean/river areas
 # Default: false
 render-underwater-blocks: false
+
+# Whether to ignore the height map of the world
+# If disabled (false), the height map of the world will be used during map tile generation to improve the speed
+# If enabled (true), the map renderer will always traverse the blocks down from the dimension's maximum height
+# This would be useful when the height map of the world is incorrect (set to true)
+# Default: false
+ignore-world-height-map: false
 ```
 
 ## Usage

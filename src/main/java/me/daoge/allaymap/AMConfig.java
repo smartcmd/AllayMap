@@ -35,4 +35,12 @@ public class AMConfig extends OkaeriConfig {
     @Comment("Default: false")
     @CustomKey("render-underwater-blocks")
     private boolean renderUnderwaterBlocks = false;
+
+    @Comment("Whether to ignore the height map of the world")
+    @Comment("If disabled (false), the height map of the world will be used during map tile generation to improve the speed")
+    @Comment("If enabled (true), the map renderer will always traverse the blocks down from the dimension's maximum height")
+    @Comment("This would be useful when the height map of the world is incorrect (set to true)")
+    @Comment("Default: false")
+    @CustomKey("ignore-world-height-map")
+    private boolean ignoreWorldHeightMap = false;
 }

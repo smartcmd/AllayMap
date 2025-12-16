@@ -211,8 +211,10 @@ public class MapRenderer {
 
         int chunkX = x & 0xF;
         int chunkZ = z & 0xF;
-        int height = chunk.getHeight(chunkX, chunkZ);
-        int minHeight = dimension.getDimensionInfo().minHeight();
+
+        var dimensionInfo = dimension.getDimensionInfo();
+        int height = AllayMap.getInstance().getConfig().ignoreWorldHeightMap() ? dimensionInfo.maxHeight() : chunk.getHeight(chunkX, chunkZ);
+        int minHeight = dimensionInfo.minHeight();
 
         while (height >= minHeight) {
             BlockState state = chunk.getBlockState(chunkX, height, chunkZ);
