@@ -3,422 +3,527 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AllayMap</title>
+    <title>AllayMap - Minecraft Live Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --panel-bg: rgba(26, 26, 46, 0.95);
+            --text-primary: #f8f8f2;
+            --text-secondary: #6272a4;
+            --accent: #8be9fd;
+            --success: #50fa7b;
+            --warning: #ffb86c;
+            --danger: #ff5555;
+            --border: #44475a;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        #map { height: 100%; width: 100%; background: #1a1a2e; }
+        html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-color); }
+
+        #map { height: 100%; width: 100%; z-index: 1; }
+
+        /* 优化地图切片渲染，防止像素模糊 */
         .leaflet-tile {
-            image-rendering: pixelated;
-            image-rendering: -moz-crisp-edges;
+            image-rendering: pixelated; /* Chrome/Edge */
+            image-rendering: -moz-crisp-edges; /* Firefox */
+        }
+
+        /* 平滑玩家移动动画 */
+        .leaflet-marker-icon {
+            transition: transform 0.5s linear;
         }
 
         #controls {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 15px;
+            right: 15px;
             z-index: 1000;
-            background: rgba(26, 26, 46, 0.9);
+            background: var(--panel-bg);
             padding: 15px;
-            border-radius: 8px;
-            color: #fff;
-            min-width: 200px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border-radius: 12px;
+            color: var(--text-primary);
+            width: 240px;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
         #controls h3 {
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: #8be9fd;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent);
         }
 
         #world-select {
             width: 100%;
-            padding: 8px;
-            border: 1px solid #44475a;
-            border-radius: 4px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
             background: #282a36;
-            color: #f8f8f2;
-            margin-bottom: 10px;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+            outline: none;
+            cursor: pointer;
         }
 
         #player-list {
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
+            /* 自定义滚动条 */
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
         }
+
+        #player-list::-webkit-scrollbar { width: 6px; }
+        #player-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
         .player-item {
             display: flex;
             align-items: center;
-            padding: 5px;
+            padding: 8px;
             cursor: pointer;
-            border-radius: 4px;
+            border-radius: 6px;
+            transition: background 0.2s;
+            margin-bottom: 2px;
         }
 
-        .player-item:hover {
-            background: rgba(255,255,255,0.1);
-        }
+        .player-item:hover { background: rgba(255,255,255,0.1); }
+        .player-item.active { background: rgba(80, 250, 123, 0.15); border: 1px solid rgba(80, 250, 123, 0.3); }
 
-        .player-icon {
-            width: 24px;
-            height: 24px;
-            background: #50fa7b;
-            border-radius: 50%;
-            margin-right: 8px;
+        .player-avatar {
+            width: 28px;
+            height: 28px;
+            background: var(--border);
+            border-radius: 6px;
+            margin-right: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
+            font-weight: bold;
+            color: var(--accent);
+            overflow: hidden;
         }
+
+        .player-avatar img { width: 100%; height: 100%; image-rendering: pixelated; }
+
+        .player-info { display: flex; flex-direction: column; flex: 1; }
+        .player-name { font-size: 14px; font-weight: 500; }
+        .player-pos { font-size: 11px; color: var(--text-secondary); }
 
         .coords {
             position: absolute;
-            bottom: 10px;
-            left: 10px;
+            bottom: 20px;
+            left: 20px;
             z-index: 1000;
-            background: rgba(26, 26, 46, 0.9);
+            background: var(--panel-bg);
             padding: 8px 12px;
-            border-radius: 4px;
-            color: #fff;
-            font-family: monospace;
-            font-size: 12px;
+            border-radius: 30px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            pointer-events: none;
+            transition: opacity 0.3s;
         }
 
-        .player-marker {
-            background: #50fa7b;
-            border: 3px solid #fff;
-            border-radius: 50%;
-            width: 16px;
-            height: 16px;
+        /* Marker Styles */
+        .player-marker-root { position: relative; }
+        .player-head {
+            background: var(--success);
+            border: 2px solid #fff;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+            border-radius: 4px;
+            width: 20px;
+            height: 20px;
         }
 
         .player-label {
             position: absolute;
-            left: 22px;
-            top: -10px;
+            left: 50%;
+            bottom: 28px;
+            transform: translateX(-50%);
             white-space: nowrap;
-            background: rgba(26, 26, 46, 0.9);
-            padding: 5px 10px;
-            border-radius: 6px;
-            font-size: 14px;
-            color: #fff;
-            pointer-events: none;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-align: center;
+            opacity: 0.9;
+        }
+        /* 小三角 */
+        .player-label::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            margin-left: -4px;
+            border-width: 4px 4px 0;
+            border-style: solid;
+            border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
         }
 
-        .player-label .name {
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
+        .player-label .name { font-size: 12px; color: #fff; font-weight: bold; margin-bottom: 2px; }
 
-        .player-label .health-bar {
-            width: 70px;
-            height: 6px;
-            background: #44475a;
-            border-radius: 3px;
+        .health-bar {
+            width: 100%;
+            min-width: 40px;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
             overflow: hidden;
+            margin: 0 auto;
         }
 
-        .player-label .health-fill {
-            height: 100%;
-            background: #50fa7b;
-            transition: width 0.3s ease;
-        }
-
-        .player-label .health-fill.low {
-            background: #ffb86c;
-        }
-
-        .player-label .health-fill.critical {
-            background: #ff5555;
-        }
-
-        .status-message {
-            color: #6272a4;
-            font-size: 12px;
-            padding: 5px 0;
-        }
-
-        .status-message.error {
-            color: #ff5555;
-        }
+        .health-fill { height: 100%; transition: width 0.3s ease, background-color 0.3s; }
+        .health-fill.high { background: var(--success); }
+        .health-fill.medium { background: var(--warning); }
+        .health-fill.low { background: var(--danger); }
     </style>
 </head>
 <body>
-    <div id="map"></div>
+<div id="map"></div>
 
-    <div id="controls">
-        <h3>World</h3>
-        <select id="world-select">
-            <option value="">Loading...</option>
-        </select>
+<div id="controls">
+    <h3>World</h3>
+    <select id="world-select">
+        <option value="" disabled selected>Select World</option>
+    </select>
 
-        <h3>Players</h3>
-        <div id="player-list">
-            <div class="status-message">Loading...</div>
-        </div>
+    <h3>Online Players</h3>
+    <div id="player-list">
+        <div style="padding:10px; color: #6272a4; font-size: 12px;">Waiting for data...</div>
     </div>
+</div>
 
-    <div class="coords" id="coords">X: 0, Z: 0</div>
+<div class="coords" id="coords" style="opacity: 0;">X: 0, Z: 0</div>
 
-    <script>
-        // Configuration
-        const DISPLAY_TILE_SIZE = 512;
-        const MAX_TILE_ZOOM = 5;
-        const PLAYER_UPDATE_INTERVAL = 1000;
-        const COORD_UPDATE_THROTTLE = 50; // ms
+<script>
+    class AllayMap {
+        constructor() {
+            // Config
+            this.config = {
+                tileSize: 512,
+                maxZoom: 5,
+                updateInterval: 1000,
+                api: {
+                    worlds: '/api/worlds',
+                    players: '/api/players'
+                }
+            };
 
-        // State
-        let currentWorld = null;
-        let tileLayer = null;
-        const playerMarkers = new Map();
-        let isUpdatingPlayers = false;
-        let lastCoordUpdate = 0;
+            // State
+            this.state = {
+                currentWorld: null,
+                players: new Map(), // Stores data + markers
+                listElements: new Map(), // Stores DOM elements for list
+                isFetching: false
+            };
 
-        // Initialize map
-        const map = L.map('map', {
-            crs: L.CRS.Simple,
-            center: [0, 0],
-            attributionControl: false,
-            preferCanvas: true,
-            minZoom: 0,
-            maxZoom: MAX_TILE_ZOOM,
-            zoomSnap: 1,
-            zoomDelta: 1
-        }).setView([0, 0], 2);
+            this.dom = {
+                worldSelect: document.getElementById('world-select'),
+                playerList: document.getElementById('player-list'),
+                coords: document.getElementById('coords')
+            };
 
-        // Custom tile layer
-        class MinecraftTileLayer extends L.TileLayer {
-            getTileUrl(coords) {
-                if (!currentWorld) return '';
-                const tileZoom = Math.min(MAX_TILE_ZOOM, Math.max(0, MAX_TILE_ZOOM - coords.z));
-                return `/tiles/${currentWorld}/${tileZoom}/${coords.x}_${coords.y}.png`;
-            }
+            this.initMap();
+            this.bindEvents();
+            this.startLoop();
         }
 
-        // Load worlds
-        async function loadWorlds() {
-            const select = document.getElementById('world-select');
+        initMap() {
+            this.map = L.map('map', {
+                crs: L.CRS.Simple,
+                center: [0, 0],
+                zoom: 2,
+                minZoom: 0,
+                maxZoom: this.config.maxZoom,
+                zoomSnap: 0.5,
+                zoomDelta: 0.5,
+                attributionControl: false,
+                preferCanvas: true
+            });
 
+            // Custom Tile Layer
+            this.tileLayer = L.tileLayer('', {
+                tileSize: this.config.tileSize,
+                noWrap: true,
+                bounds: [[-1000000, -1000000], [1000000, 1000000]],
+                // errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' // 透明占位图
+            });
+
+            // Override getTileUrl dynamically
+            this.tileLayer.getTileUrl = (coords) => {
+                if (!this.state.currentWorld) return '';
+                const z = Math.min(this.config.maxZoom, Math.max(0, this.config.maxZoom - coords.z));
+                return `/tiles/${this.state.currentWorld}/${z}/${coords.x}_${coords.y}.png`;
+            };
+
+            this.tileLayer.addTo(this.map);
+        }
+
+        bindEvents() {
+            // World Change
+            this.dom.worldSelect.addEventListener('change', (e) => {
+                const opt = e.target.selectedOptions[0];
+                if (opt) {
+                    this.setWorld(opt.value, +opt.dataset.x, +opt.dataset.z);
+                }
+            });
+
+            // Coords Update (using requestAnimationFrame for performance)
+            this.map.on('mousemove', (e) => {
+                if (this.coordReq) cancelAnimationFrame(this.coordReq);
+                this.coordReq = requestAnimationFrame(() => {
+                    const x = Math.floor(e.latlng.lng);
+                    const z = -Math.floor(e.latlng.lat);
+                    this.dom.coords.textContent = `X: ${x}, Z: ${z}`;
+                    this.dom.coords.style.opacity = '1';
+                });
+            });
+
+            this.map.on('mouseout', () => {
+                this.dom.coords.style.opacity = '0';
+            });
+        }
+
+        async startLoop() {
+            await this.loadWorlds();
+            this.updatePlayers(); // Initial call
+            setInterval(() => this.updatePlayers(), this.config.updateInterval);
+        }
+
+        async loadWorlds() {
             try {
-                const response = await fetch('/api/worlds');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
+                const res = await fetch(this.config.api.worlds);
+                if (!res.ok) throw new Error('API Error');
+                const data = await res.json();
 
-                select.innerHTML = '';
+                this.dom.worldSelect.innerHTML = '';
 
-                if (data.worlds.length === 0) {
-                    select.innerHTML = '<option value="">No worlds available</option>';
+                if (!data.worlds || data.worlds.length === 0) {
+                    this.dom.worldSelect.innerHTML = '<option>No worlds found</option>';
                     return;
                 }
 
-                data.worlds.forEach(world => {
-                    const option = document.createElement('option');
-                    option.value = world.id;
-                    option.textContent = `${world.name} (${world.dimensionName})`;
-                    option.dataset.spawnX = world.spawn.x;
-                    option.dataset.spawnZ = world.spawn.z;
-                    select.appendChild(option);
+                data.worlds.forEach((w, index) => {
+                    const opt = document.createElement('option');
+                    opt.value = w.id;
+                    opt.textContent = w.dimensionName ? `${w.name} (${w.dimensionName})` : w.name;
+                    opt.dataset.x = w.spawn.x;
+                    opt.dataset.z = w.spawn.z;
+                    this.dom.worldSelect.appendChild(opt);
+
+                    // Default select first world
+                    if (index === 0) this.setWorld(w.id, w.spawn.x, w.spawn.z);
                 });
-
-                selectWorld(data.worlds[0].id, data.worlds[0].spawn.x, data.worlds[0].spawn.z);
             } catch (e) {
-                console.error('Failed to load worlds:', e);
-                select.innerHTML = '<option value="">Failed to load worlds</option>';
-                // Retry after 5 seconds
-                setTimeout(loadWorlds, 5000);
+                console.error('World load failed', e);
+                setTimeout(() => this.loadWorlds(), 5000); // Retry
             }
         }
 
-        // Select a world
-        function selectWorld(worldId, spawnX = 0, spawnZ = 0) {
-            currentWorld = worldId;
+        setWorld(id, spawnX, spawnZ) {
+            if (this.state.currentWorld === id) return;
+            this.state.currentWorld = id;
 
-            if (tileLayer) {
-                map.removeLayer(tileLayer);
-            }
+            // Refresh tiles
+            this.tileLayer.redraw();
 
-            tileLayer = new MinecraftTileLayer('', {
-                tileSize: DISPLAY_TILE_SIZE,
-                noWrap: true,
-                bounds: [[-1000000, -1000000], [1000000, 1000000]]
-            });
+            // Fly to spawn
+            this.map.setView([-spawnZ, spawnX], 2);
 
-            tileLayer.addTo(map);
-            map.setView([-spawnZ, spawnX], 2);
-
-            // Update player markers for new world
-            updatePlayerMarkersVisibility();
+            // Update markers visibility
+            this.refreshMarkerVisibility();
         }
 
-        // Update only marker visibility when world changes
-        function updatePlayerMarkersVisibility() {
-            playerMarkers.forEach((markerData, uuid) => {
-                if (markerData.world === currentWorld) {
-                    if (!map.hasLayer(markerData.marker)) {
-                        markerData.marker.addTo(map);
-                    }
-                } else {
-                    if (map.hasLayer(markerData.marker)) {
-                        map.removeLayer(markerData.marker);
-                    }
-                }
-            });
-        }
-
-        // Create HTML for player marker with name and health bar
-        function createPlayerMarkerHtml(player) {
-            const healthPercent = (player.health / player.maxHealth) * 100;
-            const healthClass = healthPercent <= 25 ? 'critical' : (healthPercent <= 50 ? 'low' : '');
-            return `
-                <div class="player-marker"></div>
-                <div class="player-label">
-                    <div class="name">${escapeHtml(player.name)}</div>
-                    <div class="health-bar">
-                        <div class="health-fill ${healthClass}" style="width: ${healthPercent}%"></div>
-                    </div>
-                </div>
-            `;
-        }
-
-        // Update marker label with new health data
-        function updateMarkerLabel(marker, player) {
-            const healthPercent = (player.health / player.maxHealth) * 100;
-            const healthClass = healthPercent <= 25 ? 'critical' : (healthPercent <= 50 ? 'low' : '');
-            marker.setIcon(L.divIcon({
-                className: '',
-                html: createPlayerMarkerHtml(player),
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
-            }));
-        }
-
-        // Escape HTML to prevent XSS
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Update players with incremental updates
-        async function updatePlayers() {
-            if (isUpdatingPlayers) return;
-            isUpdatingPlayers = true;
-
-            const playerList = document.getElementById('player-list');
+        async updatePlayers() {
+            if (this.state.isFetching) return;
+            this.state.isFetching = true;
 
             try {
-                const response = await fetch('/api/players');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
+                const res = await fetch(this.config.api.players);
+                const data = await res.json();
+                const players = data.players || [];
+                const activeUuids = new Set();
 
-                const currentPlayerUuids = new Set();
+                // 1. Update or Create
+                players.forEach(p => {
+                    activeUuids.add(p.uuid);
+                    this.handlePlayerUpdate(p);
+                });
 
-                // Update or add players
-                data.players.forEach(player => {
-                    currentPlayerUuids.add(player.uuid);
-
-                    if (playerMarkers.has(player.uuid)) {
-                        // Update existing marker position
-                        const markerData = playerMarkers.get(player.uuid);
-                        markerData.marker.setLatLng([-player.z, player.x]);
-                        markerData.marker.setPopupContent(
-                            `<b>${player.name}</b><br>X: ${player.x}, Y: ${player.y}, Z: ${player.z}<br>Health: ${Math.round(player.health)}/${Math.round(player.maxHealth)}`
-                        );
-                        // Update health bar
-                        updateMarkerLabel(markerData.marker, player);
-                        markerData.world = player.world;
-                        markerData.player = player;
-
-                        // Update visibility
-                        if (player.world === currentWorld && !map.hasLayer(markerData.marker)) {
-                            markerData.marker.addTo(map);
-                        } else if (player.world !== currentWorld && map.hasLayer(markerData.marker)) {
-                            map.removeLayer(markerData.marker);
-                        }
-                    } else {
-                        // Create new marker
-                        const marker = L.marker([-player.z, player.x], {
-                            icon: L.divIcon({
-                                className: '',
-                                html: createPlayerMarkerHtml(player),
-                                iconSize: [12, 12],
-                                iconAnchor: [6, 6]
-                            })
-                        }).bindPopup(`<b>${player.name}</b><br>X: ${player.x}, Y: ${player.y}, Z: ${player.z}<br>Health: ${Math.round(player.health)}/${Math.round(player.maxHealth)}`);
-
-                        if (player.world === currentWorld) {
-                            marker.addTo(map);
-                        }
-
-                        playerMarkers.set(player.uuid, { marker, world: player.world, player });
+                // 2. Remove disconnected
+                this.state.players.forEach((val, uuid) => {
+                    if (!activeUuids.has(uuid)) {
+                        this.removePlayer(uuid);
                     }
                 });
 
-                // Remove disconnected players
-                playerMarkers.forEach((markerData, uuid) => {
-                    if (!currentPlayerUuids.has(uuid)) {
-                        map.removeLayer(markerData.marker);
-                        playerMarkers.delete(uuid);
-                    }
-                });
-
-                // Update player list UI
-                if (data.players.length === 0) {
-                    playerList.innerHTML = '<div class="status-message">No players online</div>';
-                } else {
-                    playerList.innerHTML = '';
-                    data.players.forEach(player => {
-                        const item = document.createElement('div');
-                        item.className = 'player-item';
-                        item.innerHTML = `
-                            <div class="player-icon">${player.name.charAt(0).toUpperCase()}</div>
-                            <span>${player.name}</span>
-                        `;
-                        item.onclick = () => {
-                            if (player.world === currentWorld) {
-                                map.setView([-player.z, player.x], MAX_TILE_ZOOM);
-                            } else {
-                                document.getElementById('world-select').value = player.world;
-                                selectWorld(player.world, player.x, player.z);
-                            }
-                        };
-                        playerList.appendChild(item);
-                    });
+                // 3. Update List Empty State
+                if (players.length === 0 && this.dom.playerList.children.length > 0) {
+                    this.dom.playerList.innerHTML = '<div style="padding:10px; color: #6272a4; font-size: 12px;">No players online</div>';
+                } else if (players.length > 0 && this.dom.playerList.querySelector('div').textContent.includes('No players')) {
+                    this.dom.playerList.innerHTML = '';
                 }
+
             } catch (e) {
-                console.error('Failed to update players:', e);
-                playerList.innerHTML = '<div class="status-message error">Failed to load players</div>';
+                console.warn('Player update failed', e);
             } finally {
-                isUpdatingPlayers = false;
+                this.state.isFetching = false;
             }
         }
 
-        // Throttled coordinate update
-        map.on('mousemove', (e) => {
-            const now = Date.now();
-            if (now - lastCoordUpdate < COORD_UPDATE_THROTTLE) return;
-            lastCoordUpdate = now;
+        handlePlayerUpdate(p) {
+            // --- Map Marker Logic ---
+            if (this.state.players.has(p.uuid)) {
+                // Update existing
+                const obj = this.state.players.get(p.uuid);
+                const oldP = obj.data;
 
-            const x = Math.floor(e.latlng.lng);
-            const z = -Math.floor(e.latlng.lat);
-            document.getElementById('coords').textContent = `X: ${x}, Z: ${z}`;
-        });
+                // Move marker (Leaflet + CSS transition handles smoothing)
+                obj.marker.setLatLng([-p.z, p.x]);
 
-        // World select handler
-        document.getElementById('world-select').addEventListener('change', (e) => {
-            const option = e.target.selectedOptions[0];
-            if (option && option.value) {
-                selectWorld(option.value, parseInt(option.dataset.spawnX) || 0, parseInt(option.dataset.spawnZ) || 0);
+                // Only update DOM icon if health/name changed to save performance
+                if (Math.round(p.health) !== Math.round(oldP.health) || p.name !== oldP.name) {
+                    obj.marker.setIcon(this.createIcon(p));
+                }
+
+                // Handle World Change
+                if (p.world !== oldP.world) {
+                    obj.data.world = p.world;
+                    this.refreshMarkerVisibility();
+                }
+
+                // Store new data
+                obj.data = p;
+            } else {
+                // Create new
+                const marker = L.marker([-p.z, p.x], {
+                    icon: this.createIcon(p)
+                });
+
+                if (p.world === this.state.currentWorld) {
+                    marker.addTo(this.map);
+                }
+
+                this.state.players.set(p.uuid, { marker, data: p });
             }
-        });
 
-        // Initialize
-        loadWorlds();
-        updatePlayers();
-        setInterval(updatePlayers, PLAYER_UPDATE_INTERVAL);
-    </script>
+            // --- Sidebar List Logic (Diffing) ---
+            this.updatePlayerListItem(p);
+        }
+
+        removePlayer(uuid) {
+            // Remove marker
+            const obj = this.state.players.get(uuid);
+            if (obj && obj.marker) this.map.removeLayer(obj.marker);
+            this.state.players.delete(uuid);
+
+            // Remove list item
+            const el = this.state.listElements.get(uuid);
+            if (el) {
+                el.remove();
+                this.state.listElements.delete(uuid);
+            }
+        }
+
+        updatePlayerListItem(p) {
+            let el = this.state.listElements.get(p.uuid);
+
+            // If list was cleared by "No players" message, reset mapping
+            if (!document.contains(el)) el = null;
+
+            if (!el) {
+                // Create Item
+                el = document.createElement('div');
+                el.className = 'player-item';
+                el.onclick = () => this.focusPlayer(p.uuid);
+                this.dom.playerList.appendChild(el);
+                this.state.listElements.set(p.uuid, el);
+            }
+
+            // Update Content
+            const isCurrentWorld = p.world === this.state.currentWorld;
+            el.className = `player-item ${isCurrentWorld ? 'active' : ''}`;
+            el.innerHTML = `
+                    <div class="player-avatar">
+                        ${p.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="player-info">
+                        <div class="player-name">${this.escape(p.name)}</div>
+                        <div class="player-pos">
+                            ${isCurrentWorld ? `X: ${Math.round(p.x)} Z: ${Math.round(p.z)}` : `in ${p.world}`}
+                        </div>
+                    </div>
+                `;
+        }
+
+        refreshMarkerVisibility() {
+            this.state.players.forEach(({marker, data}) => {
+                if (data.world === this.state.currentWorld) {
+                    if (!this.map.hasLayer(marker)) marker.addTo(this.map);
+                } else {
+                    if (this.map.hasLayer(marker)) this.map.removeLayer(marker);
+                }
+            });
+        }
+
+        createIcon(p) {
+            const hpPct = Math.min(100, Math.max(0, (p.health / p.maxHealth) * 100));
+            let colorClass = 'high';
+            if (hpPct < 50) colorClass = 'medium';
+            if (hpPct < 20) colorClass = 'low';
+
+            return L.divIcon({
+                className: 'player-marker-root',
+                html: `
+                        <div class="player-label">
+                            <div class="name">${this.escape(p.name)}</div>
+                            <div class="health-bar">
+                                <div class="health-fill ${colorClass}" style="width: ${hpPct}%"></div>
+                            </div>
+                        </div>
+                        <div class="player-head"></div>
+                    `,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+        }
+
+        focusPlayer(uuid) {
+            const obj = this.state.players.get(uuid);
+            if (!obj) return;
+
+            const { data } = obj;
+            if (data.world !== this.state.currentWorld) {
+                this.dom.worldSelect.value = data.world;
+                // Trigger change event manually or call setWorld directly
+                // Find spawn coords for that world is tricky without world list map,
+                // so we just switch world ID and let the next update loop handle marker visibility,
+                // then fly to player.
+                this.state.currentWorld = data.world;
+                this.tileLayer.redraw();
+                this.refreshMarkerVisibility();
+            }
+
+            this.map.flyTo([-data.z, data.x], this.config.maxZoom);
+        }
+
+        escape(str) {
+            return str.replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        }
+    }
+
+    // Initialize App
+    document.addEventListener('DOMContentLoaded', () => {
+        window.app = new AllayMap();
+    });
+</script>
 </body>
 </html>
