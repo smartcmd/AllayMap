@@ -180,6 +180,9 @@
         // Initialize map
         const map = L.map('map', {
             crs: L.CRS.Simple,
+            center: [0, 0],
+            attributionControl: false,
+            preferCanvas: true,
             minZoom: 0,
             maxZoom: MAX_TILE_ZOOM,
             zoomSnap: 1,

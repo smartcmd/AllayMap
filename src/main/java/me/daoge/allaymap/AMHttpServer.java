@@ -193,12 +193,14 @@ public class AMHttpServer {
 
                 try (OutputStream os = exchange.getResponseBody()) {
                     ImageIO.write(tile, "png", os);
+                } catch (IOException ignored) {
+                    // Frontend closes connection
                 }
 
             } catch (NumberFormatException e) {
                 sendError(exchange, 400, "Invalid coordinates");
-            } catch (Exception e) {
-                AllayMap.getInstance().getPluginLogger().error("Failed to serve tile!", e);
+            }  catch (Throwable t) {
+                AllayMap.getInstance().getPluginLogger().error("Failed to serve tile!", t);
                 sendError(exchange, 500, "Internal server error");
             }
         }

@@ -92,11 +92,11 @@ public class MapTileManager {
      */
     private void renderAndSaveChunk(Dimension dimension, int chunkX, int chunkZ) {
         String dimensionName = getDimensionName(dimension);
-        String key = "render:" + getTilePath(dimensionName, 0, chunkX, chunkZ);
+        String key = "render:" + getTilePath(dimensionName, chunkX, chunkZ);
 
         tileTasks.computeIfAbsent(key, k -> renderer.renderChunk(dimension, chunkX, chunkZ)
                 .thenApply(image -> {
-                    saveTile(dimensionName, 0, chunkX, chunkZ, image);
+                    saveTile(dimensionName, chunkX, chunkZ, image);
                     return image;
                 })
                 .exceptionally(e -> {
@@ -118,7 +118,7 @@ public class MapTileManager {
             return generateZoomedTile(dimension, tileX, tileZ, zoom);
         }
 
-        var tilePath = getTilePath(getDimensionName(dimension), 0, tileX, tileZ);
+        var tilePath = getTilePath(getDimensionName(dimension), tileX, tileZ);
 
         // First, check if there's an ongoing render task for this tile
         var renderKey = "render:" + tilePath;
@@ -150,7 +150,6 @@ public class MapTileManager {
 
     /**
      * Generate a zoomed-out tile by combining 4 tiles from a lower zoom level.
-     * Generated on-the-fly without caching.
      */
     private CompletableFuture<BufferedImage> generateZoomedTile(Dimension dimension, int tileX, int tileZ, int zoom) {
         int resultSize = getTileSize(zoom);
@@ -195,10 +194,10 @@ public class MapTileManager {
     /**
      * Save a tile to disk.
      */
-    private void saveTile(String dimensionName, int zoom, int tileX, int tileZ, BufferedImage image) {
+    private void saveTile(String dimensionName, int tileX, int tileZ, BufferedImage image) {
         if (image == null) return;
 
-        Path tilePath = getTilePath(dimensionName, zoom, tileX, tileZ);
+        Path tilePath = getTilePath(dimensionName, tileX, tileZ);
         try {
             Files.createDirectories(tilePath.getParent());
             ImageIO.write(image, "png", tilePath.toFile());
@@ -210,8 +209,8 @@ public class MapTileManager {
     /**
      * Get the path for a tile.
      */
-    private Path getTilePath(String dimensionName, int zoom, int tileX, int tileZ) {
-        return tilesDirectory.resolve(dimensionName).resolve(String.valueOf(zoom)).resolve(tileX + "_" + tileZ + ".png");
+    private Path getTilePath(String dimensionName, int tileX, int tileZ) {
+        return tilesDirectory.resolve(dimensionName).resolve(tileX + "_" + tileZ + ".png");
     }
 
     /**
