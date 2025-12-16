@@ -76,7 +76,7 @@ public class MapTileManager {
                     continue;
                 }
 
-                logger.info("Processing {} dirty chunks in {}", dirtyChunks.size(), world.getName());
+                logger.debug("Processing {} dirty chunks in {}", dirtyChunks.size(), world.getName());
 
                 for (long chunkKey : dirtyChunks) {
                     int chunkX = HashUtils.getXFromHashXZ(chunkKey);
