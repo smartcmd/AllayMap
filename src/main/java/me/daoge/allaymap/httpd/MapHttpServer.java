@@ -29,7 +29,6 @@ import java.util.concurrent.Executors;
 /**
  * Embedded HTTP server for serving map tiles and web interface.
  */
-@Slf4j
 public class MapHttpServer {
 
     private static final Map<String, String> MIME_TYPES = new HashMap<>();
@@ -78,7 +77,7 @@ public class MapHttpServer {
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
 
-        log.info("AllayMap web server started on port {}", port);
+        AllayMap.getInstance().getPluginLogger().info("AllayMap web server started on port {}", port);
     }
 
     /**
@@ -87,7 +86,7 @@ public class MapHttpServer {
     public void stop() {
         if (server != null) {
             server.stop(0);
-            log.info("AllayMap web server stopped");
+            AllayMap.getInstance().getPluginLogger().info("AllayMap web server stopped");
         }
     }
 

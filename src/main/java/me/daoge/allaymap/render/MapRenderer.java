@@ -19,18 +19,16 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * MapRenderer handles the rendering of chunks to images following vanilla map style.
- * Based on AllayMC's ItemFilledMapBaseComponentImpl rendering algorithm.
+ * MapRenderer handles the rendering of chunks to images.
  */
-@Slf4j
 public class MapRenderer {
 
-    public static final int CHUNK_TILE_SIZE = 16; // 1 pixel per block
-    public static final int CHUNK_SIZE = 16;
-    public static final int SEA_LEVEL = 62;
+    private static final int CHUNK_TILE_SIZE = 16;
+    private static final int CHUNK_SIZE = 16;
+    private static final int SEA_LEVEL = 62;
 
     // Color for unloaded/missing chunks
-    private static final Color UNLOADED_CHUNK_COLOR = new Color(0x1a1a2e); // Dark blue-gray
+    private static final Color UNLOADED_CHUNK_COLOR = new Color(0x1a1a2e);
     private static final Color BIRCH_FOLIAGE = new Color(0x80a755);
     private static final Color EVERGREEN_FOLIAGE = new Color(0x619961);
     private static final Color DRY_FOLIAGE_SPECIAL_A = new Color(0x7b5334);
@@ -50,14 +48,18 @@ public class MapRenderer {
     private static volatile BufferedImage DRY_FOLIAGE_COLORMAP;
     private static volatile BufferedImage GRASS_COLORMAP;
 
+    static {
+        initColormaps();
+    }
+
     /**
      * Initialize colormaps from resources
      */
-    public static void initColormaps() {
+    private static void initColormaps() {
         FOLIAGE_COLORMAP = readColormap("colormap/foliage.png");
         DRY_FOLIAGE_COLORMAP = readColormap("colormap/dry_foliage.png");
         GRASS_COLORMAP = readColormap("colormap/grass.png");
-        log.info("Colormaps loaded successfully");
+        AllayMap.getInstance().getPluginLogger().info("Colormaps loaded successfully");
     }
 
     @SneakyThrows
@@ -109,7 +111,7 @@ public class MapRenderer {
             image.setRGB(0, 0, CHUNK_TILE_SIZE, CHUNK_TILE_SIZE, pixels, 0, CHUNK_TILE_SIZE);
             return image;
         }, Server.getInstance().getVirtualThreadPool()).exceptionally(e -> {
-            log.error("Error rendering chunk ({}, {})", chunkX, chunkZ, e);
+            AllayMap.getInstance().getPluginLogger().error("Error rendering chunk ({}, {})", chunkX, chunkZ, e);
             return createEmptyChunkTile();
         });
     }
@@ -117,7 +119,7 @@ public class MapRenderer {
     /**
      * Create an empty 16x16 tile (for unloaded chunks)
      */
-    public BufferedImage createEmptyChunkTile() {
+    private BufferedImage createEmptyChunkTile() {
         BufferedImage image = new BufferedImage(CHUNK_TILE_SIZE, CHUNK_TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
         int color = UNLOADED_CHUNK_COLOR.getRGB();
         for (int i = 0; i < CHUNK_TILE_SIZE * CHUNK_TILE_SIZE; i++) {

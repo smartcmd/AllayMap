@@ -1,23 +1,22 @@
 package me.daoge.allaymap.listener;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import me.daoge.allaymap.render.RenderQueue;
 import org.allaymc.api.eventbus.EventHandler;
 import org.allaymc.api.eventbus.event.block.BlockPlaceEvent;
 import org.allaymc.api.eventbus.event.world.ChunkLoadEvent;
+import org.allaymc.api.eventbus.event.world.WorldUnloadEvent;
 
 /**
  * Listens for world events and marks affected regions as dirty for re-rendering.
  */
-@Slf4j
 @RequiredArgsConstructor
 public class WorldEventListener {
 
     private final RenderQueue renderQueue;
 
     @EventHandler
-    public void onChunkLoad(ChunkLoadEvent event) {
+    private void onChunkLoad(ChunkLoadEvent event) {
         var chunk = event.getChunk();
         var dimension = event.getDimension();
         // Only mark dirty if this region hasn't been rendered yet
@@ -26,9 +25,17 @@ public class WorldEventListener {
     }
 
     @EventHandler
-    public void onBlockPlace(BlockPlaceEvent event) {
+    private void onBlockPlace(BlockPlaceEvent event) {
         var pos = event.getBlock().getPosition();
         var dimension = event.getBlock().getDimension();
         renderQueue.markBlockDirty(dimension, pos.x(), pos.z());
+    }
+
+    @EventHandler
+    private void onWorldUnload(WorldUnloadEvent event) {
+        var world = event.getWorld();
+        for (var dimension : world.getDimensions().values()) {
+            renderQueue.removeDimension(dimension);
+        }
     }
 }

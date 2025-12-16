@@ -1,6 +1,7 @@
 package me.daoge.allaymap.render;
 
 import lombok.extern.slf4j.Slf4j;
+import org.allaymc.api.utils.hash.HashUtils;
 import org.allaymc.api.world.Dimension;
 
 import java.util.HashSet;
@@ -9,8 +10,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Tracks chunks that need to be re-rendered.
- * Uses a set to deduplicate render requests.
+ * Tracks chunks that need to be re-rendered. Uses a set to deduplicate render requests.
  */
 @Slf4j
 public class RenderQueue {
@@ -23,24 +23,21 @@ public class RenderQueue {
 
     /**
      * Mark a chunk as dirty (needs re-rendering).
-     * Used for block changes - always marks dirty.
      */
     public void markChunkDirty(Dimension dimension, int chunkX, int chunkZ) {
-        long key = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+        long key = HashUtils.hashXZ(chunkX, chunkZ);
         getDirtyChunkSet(dimension).add(key);
     }
 
     /**
      * Mark a chunk as dirty only if it hasn't been rendered yet.
-     * Used for chunk load events - only renders newly explored areas.
-     * This method is thread-safe.
      */
     public void markChunkDirtyIfNew(Dimension dimension, int chunkX, int chunkZ) {
-        long key = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
+        long key = HashUtils.hashXZ(chunkX, chunkZ);
 
         // Use computeIfAbsent on renderedChunks to atomically check and potentially mark dirty
         // If the key is already in renderedChunks, we don't need to mark dirty
-        Set<Long> rendered = renderedChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet());
+        Set<Long> rendered = this.renderedChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet());
 
         // putIfAbsent semantics: only mark dirty if not already rendered
         // We use a trick: try to add to a temporary tracking, but actual logic uses contains
@@ -54,7 +51,7 @@ public class RenderQueue {
      * Always returns a valid set that is safe to add to.
      */
     private Set<Long> getDirtyChunkSet(Dimension dimension) {
-        return dirtyChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet());
+        return this.dirtyChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet());
     }
 
     /**
@@ -62,7 +59,7 @@ public class RenderQueue {
      */
     public void markChunkRendered(Dimension dimension, int chunkX, int chunkZ) {
         long key = ((long) chunkX << 32) | (chunkZ & 0xFFFFFFFFL);
-        renderedChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet()).add(key);
+        this.renderedChunks.computeIfAbsent(dimension, d -> ConcurrentHashMap.newKeySet()).add(key);
     }
 
     /**
@@ -79,7 +76,7 @@ public class RenderQueue {
      * This method is thread-safe - uses copy-and-clear to avoid losing concurrent adds.
      */
     public Set<Long> pollDirtyChunks(Dimension dimension) {
-        Set<Long> chunks = dirtyChunks.get(dimension);
+        Set<Long> chunks = this.dirtyChunks.get(dimension);
         if (chunks == null || chunks.isEmpty()) {
             return Set.of();
         }
@@ -92,43 +89,12 @@ public class RenderQueue {
                 result.add(key);
             }
         }
+
         return result;
     }
 
-    /**
-     * Check if there are any dirty chunks for a dimension.
-     */
-    public boolean hasDirtyChunks(Dimension dimension) {
-        Set<Long> chunks = dirtyChunks.get(dimension);
-        return chunks != null && !chunks.isEmpty();
-    }
-
-    /**
-     * Get total number of dirty chunks across all dimensions.
-     */
-    public int getTotalDirtyChunks() {
-        return dirtyChunks.values().stream().mapToInt(Set::size).sum();
-    }
-
-    /**
-     * Extract chunkX from a chunk key.
-     */
-    public static int getChunkX(long key) {
-        return (int) (key >> 32);
-    }
-
-    /**
-     * Extract chunkZ from a chunk key.
-     */
-    public static int getChunkZ(long key) {
-        return (int) key;
-    }
-
-    /**
-     * Clear all dirty chunks and rendered tracking.
-     */
-    public void clear() {
-        dirtyChunks.clear();
-        renderedChunks.clear();
+    public void removeDimension(Dimension dimension) {
+        this.dirtyChunks.remove(dimension);
+        this.renderedChunks.remove(dimension);
     }
 }

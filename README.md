@@ -39,14 +39,14 @@ http-port: 8080
 # Recommended: 30-120 seconds depending on server performance
 # Default: 60
 update-interval: 60
+
+# Whether to render blocks underwater
+# If disabled (false), water surfaces will show biome water color directly
+# If enabled (true), underwater blocks will be visible with water tint applied
+# Disabling this can improve map readability in ocean/river areas
+# Default: false
+render-underwater-blocks: false
 ```
-
-### Configuration Options
-
-| Option            | Default | Description                                                                                 |
-|-------------------|---------|---------------------------------------------------------------------------------------------|
-| `http-port`       | 8080    | Port for the web interface. The map will be accessible at `http://localhost:<port>`         |
-| `update-interval` | 60      | Interval in seconds between processing modified chunks. Lower = faster updates but more CPU |
 
 ## Usage
 

@@ -2,8 +2,11 @@ package me.daoge.allaymap.render;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import me.daoge.allaymap.AllayMap;
 import org.allaymc.api.server.Server;
+import org.allaymc.api.utils.hash.HashUtils;
 import org.allaymc.api.world.Dimension;
+import org.slf4j.Logger;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -18,46 +21,50 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages map tiles with chunk-based rendering and multi-zoom support.
- *
- * Zoom levels (tile sizes double each level, no compression):
- * - zoom 0: 1 chunk = 1 tile (16x16 pixels)
- * - zoom 1: 2x2 chunks = 1 tile (32x32 pixels)
- * - zoom 2: 4x4 chunks = 1 tile (64x64 pixels)
- * - zoom 3: 8x8 chunks = 1 tile (128x128 pixels)
- * - zoom 4: 16x16 chunks = 1 tile (256x256 pixels)
- * - zoom 5: 32x32 chunks = 1 tile (512x512 pixels)
  */
-@Slf4j
 public class MapTileManager {
 
-    public static final int CHUNK_TILE_SIZE = 16; // Each chunk tile is 16x16 pixels
+    private static final int CHUNK_TILE_SIZE = 16;
 
     /**
      * Get the tile size for a specific zoom level.
      * Tile size doubles each zoom level: 16, 32, 64, 128, 256, 512.
      */
-    public static int getTileSize(int zoom) {
+    private static int getTileSize(int zoom) {
         return CHUNK_TILE_SIZE << zoom;
     }
 
+    private final Logger logger;
     @Getter
     private final Path tilesDirectory;
     private final MapRenderer renderer;
     @Getter
     private final RenderQueue renderQueue;
-    private final Map<String, CompletableFuture<BufferedImage>> renderingTasks = new ConcurrentHashMap<>();
-    private final Map<String, CompletableFuture<BufferedImage>> tileLoadingTasks = new ConcurrentHashMap<>();
+    private final Map<String, CompletableFuture<BufferedImage>> renderingTasks;
+    private final Map<String, CompletableFuture<BufferedImage>> tileLoadingTasks;
 
     public MapTileManager(Path dataDir) {
+        var plugin = AllayMap.getInstance();
+        this.logger = plugin.getPluginLogger();
         this.tilesDirectory = dataDir.resolve("tiles");
         this.renderer = new MapRenderer();
         this.renderQueue = new RenderQueue();
+        this.renderingTasks = new ConcurrentHashMap<>();
+        this.tileLoadingTasks = new ConcurrentHashMap<>();
 
         try {
             Files.createDirectories(tilesDirectory);
         } catch (IOException e) {
-            log.error("Failed to create tiles directory", e);
+            this.logger.error("Failed to create tiles directory", e);
         }
+
+        // Schedule periodic render task
+        var updateInterval = plugin.getConfig().updateInterval();
+        Server.getInstance().getScheduler().scheduleRepeating(plugin, () -> {
+            processDirtyChunks();
+            return true; // Continue running
+        }, updateInterval * 20);
+        this.logger.info("Scheduled map render task every {} seconds", updateInterval);
     }
 
     /**
@@ -68,13 +75,15 @@ public class MapTileManager {
         for (var world : Server.getInstance().getWorldPool().getWorlds().values()) {
             for (var dimension : world.getDimensions().values()) {
                 Set<Long> dirtyChunks = renderQueue.pollDirtyChunks(dimension);
-                if (dirtyChunks.isEmpty()) continue;
+                if (dirtyChunks.isEmpty()) {
+                    continue;
+                }
 
-                log.info("Processing {} dirty chunks in {}", dirtyChunks.size(), world.getName());
+                logger.info("Processing {} dirty chunks in {}", dirtyChunks.size(), world.getName());
 
                 for (long chunkKey : dirtyChunks) {
-                    int chunkX = RenderQueue.getChunkX(chunkKey);
-                    int chunkZ = RenderQueue.getChunkZ(chunkKey);
+                    int chunkX = HashUtils.getXFromHashXZ(chunkKey);
+                    int chunkZ = HashUtils.getZFromHashXZ(chunkKey);
 
                     // Render and save the chunk tile (zoom 0)
                     renderAndSaveChunk(dimension, chunkX, chunkZ);
@@ -107,7 +116,7 @@ public class MapTileManager {
                 return image;
             })
             .exceptionally(e -> {
-                log.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
+                logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
                 return null;
             });
 
@@ -153,7 +162,7 @@ public class MapTileManager {
                 try {
                     return ImageIO.read(tilePath.toFile());
                 } catch (IOException e) {
-                    log.warn("Failed to load cached tile {}", tilePath, e);
+                    logger.warn("Failed to load cached tile {}", tilePath, e);
                     return createEmptyTile(0);
                 }
             }, Server.getInstance().getVirtualThreadPool());
@@ -213,7 +222,7 @@ public class MapTileManager {
                 return result;
             })
             .exceptionally(e -> {
-                log.error("Failed to generate zoom {} tile ({}, {})", zoom, tileX, tileZ, e);
+                logger.error("Failed to generate zoom {} tile ({}, {})", zoom, tileX, tileZ, e);
                 return createEmptyTile(zoom);
             });
     }
@@ -229,7 +238,7 @@ public class MapTileManager {
             Files.createDirectories(tilePath.getParent());
             ImageIO.write(image, "png", tilePath.toFile());
         } catch (IOException e) {
-            log.error("Failed to save tile {}", tilePath, e);
+            logger.error("Failed to save tile {}", tilePath, e);
         }
     }
 
@@ -265,46 +274,5 @@ public class MapTileManager {
             image.setRGB(i % size, i / size, color);
         }
         return image;
-    }
-
-    /**
-     * Clear all cached tiles and reset rendered tracking.
-     * Waits for all in-progress tasks to complete before clearing.
-     */
-    public void clearCache() {
-        // Wait for all rendering tasks to complete
-        CompletableFuture<?>[] renderingFutures = renderingTasks.values().toArray(new CompletableFuture[0]);
-        CompletableFuture<?>[] loadingFutures = tileLoadingTasks.values().toArray(new CompletableFuture[0]);
-
-        if (renderingFutures.length > 0 || loadingFutures.length > 0) {
-            log.info("Waiting for {} rendering and {} loading tasks to complete before clearing cache",
-                    renderingFutures.length, loadingFutures.length);
-            try {
-                CompletableFuture.allOf(renderingFutures).join();
-                CompletableFuture.allOf(loadingFutures).join();
-            } catch (Exception e) {
-                log.warn("Some tasks failed while waiting for completion", e);
-            }
-        }
-
-        renderQueue.clear();
-
-        try {
-            if (Files.exists(tilesDirectory)) {
-                try (var paths = Files.walk(tilesDirectory)) {
-                    paths.sorted((a, b) -> -a.compareTo(b))
-                        .forEach(path -> {
-                            try {
-                                Files.deleteIfExists(path);
-                            } catch (IOException e) {
-                                log.warn("Failed to delete {}", path);
-                            }
-                        });
-                }
-            }
-            Files.createDirectories(tilesDirectory);
-        } catch (IOException e) {
-            log.error("Failed to clear tile cache", e);
-        }
     }
 }
