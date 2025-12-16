@@ -115,14 +115,12 @@ public class MapTileManager {
      */
     public CompletableFuture<BufferedImage> getTile(Dimension dimension, int tileX, int tileZ, int zoom) {
         if (zoom > 0) {
-            var zoomKey = "zoom:" + getTilePath(getDimensionName(dimension), zoom, tileX, tileZ);
-            return tileTasks.computeIfAbsent(zoomKey, k -> generateZoomedTile(dimension, tileX, tileZ, zoom))
-                    .whenComplete((result, error) -> tileTasks.remove(zoomKey));
+            return generateZoomedTile(dimension, tileX, tileZ, zoom);
         }
 
         var tilePath = getTilePath(getDimensionName(dimension), 0, tileX, tileZ);
 
-        // First check if there's an ongoing render task for this tile
+        // First, check if there's an ongoing render task for this tile
         var renderKey = "render:" + tilePath;
         var renderTask = tileTasks.get(renderKey);
         if (renderTask != null) {

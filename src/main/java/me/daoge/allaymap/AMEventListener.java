@@ -24,15 +24,23 @@ public class AMEventListener {
         renderQueue.markChunkDirty(dimension, chunk.getX(), chunk.getZ());
     }
 
-    @EventHandler
+    @EventHandler(priority = Integer.MIN_VALUE)
     private void onBlockPlace(BlockPlaceEvent event) {
+        if (event.isCancelled()) {
+            return;
+        }
+
         var pos = event.getBlock().getPosition();
         var dimension = event.getBlock().getDimension();
         renderQueue.markBlockDirty(dimension, pos.x(), pos.z());
     }
 
-    @EventHandler
+    @EventHandler(priority = Integer.MIN_VALUE)
     private void onWorldUnload(WorldUnloadEvent event) {
+        if (event.isCancelled()) {
+            return;
+        }
+
         var world = event.getWorld();
         for (var dimension : world.getDimensions().values()) {
             renderQueue.removeDimension(dimension);

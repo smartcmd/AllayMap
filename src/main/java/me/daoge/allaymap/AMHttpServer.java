@@ -198,6 +198,7 @@ public class AMHttpServer {
             } catch (NumberFormatException e) {
                 sendError(exchange, 400, "Invalid coordinates");
             } catch (Exception e) {
+                AllayMap.getInstance().getPluginLogger().error("Failed to serve tile!", e);
                 sendError(exchange, 500, "Internal server error");
             }
         }
