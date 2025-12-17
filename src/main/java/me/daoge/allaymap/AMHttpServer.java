@@ -44,16 +44,41 @@ public class AMHttpServer {
         MIME_TYPES.put("ico", "image/x-icon");
     }
 
+    /**
+     * Cached static resources (loaded once at startup)
+     */
+    private static final String[] CACHED_RESOURCES = {
+            "index.html",
+            "favicon.ico"
+    };
+
     @Getter
     private final int port;
     private final AllayMap plugin;
     private final MapTileManager tileManager;
+    private final Map<String, byte[]> resourceCache = new HashMap<>();
     private HttpServer server;
 
     public AMHttpServer(AllayMap plugin, MapTileManager tileManager, int port) {
         this.plugin = plugin;
         this.tileManager = tileManager;
         this.port = port;
+        preloadResources();
+    }
+
+    /**
+     * Preload frequently accessed static resources into memory
+     */
+    private void preloadResources() {
+        for (String resource : CACHED_RESOURCES) {
+            try {
+                byte[] content = readResource("web/" + resource);
+                resourceCache.put(resource, content);
+                AllayMap.getInstance().getPluginLogger().debug("Cached resource: {}", resource);
+            } catch (IOException e) {
+                AllayMap.getInstance().getPluginLogger().warn("Failed to cache resource: {}", resource);
+            }
+        }
     }
 
     /**
@@ -304,17 +329,21 @@ public class AMHttpServer {
                 return;
             }
 
-            // Remove leading slash for resource path
+            // Remove leading slash for resource name
+            String resourceName = path.substring(1);
             String resourcePath = "web" + path;
 
             // First, check if custom file exists in plugin's data folder
             Path customWebDir = plugin.getPluginContainer().dataFolder().resolve("web");
-            Path customFilePath = customWebDir.resolve(path.substring(1));
+            Path customFilePath = customWebDir.resolve(resourceName);
 
             byte[] content;
             if (Files.exists(customFilePath) && !Files.isDirectory(customFilePath)) {
                 // Serve custom file from data folder
                 content = Files.readAllBytes(customFilePath);
+            } else if (resourceCache.containsKey(resourceName)) {
+                // Serve from memory cache
+                content = resourceCache.get(resourceName);
             } else {
                 // Try to load from JAR resources
                 try {
