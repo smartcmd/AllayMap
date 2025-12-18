@@ -19,9 +19,9 @@ public class AMEventListener {
     private void onChunkLoad(ChunkLoadEvent event) {
         var chunk = event.getChunk();
         var dimension = event.getDimension();
-        // Only mark dirty if this region hasn't been rendered yet
-        // This avoids re-rendering when chunks are unloaded and reloaded
         renderQueue.markChunkDirty(dimension, chunk.getX(), chunk.getZ());
+        // Shadow in z+1 chunk should be recalculated
+        renderQueue.markChunkDirty(dimension, chunk.getX(), chunk.getZ() + 1);
     }
 
     @EventHandler(priority = Integer.MIN_VALUE)
@@ -33,6 +33,8 @@ public class AMEventListener {
         var pos = event.getBlock().getPosition();
         var dimension = event.getBlock().getDimension();
         renderQueue.markBlockDirty(dimension, pos.x(), pos.z());
+        // Shadow in z+1 chunk should be recalculated
+        renderQueue.markBlockDirty(dimension, pos.x(), pos.z() + 1);
     }
 
     @EventHandler(priority = Integer.MIN_VALUE)

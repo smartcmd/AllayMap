@@ -10,12 +10,16 @@ import org.allaymc.api.world.Dimension;
 import org.allaymc.api.world.biome.BiomeType;
 import org.allaymc.api.world.biome.BiomeTypes;
 import org.allaymc.api.world.chunk.Chunk;
+import org.allaymc.api.world.chunk.OperationType;
+import org.allaymc.api.world.chunk.UnsafeChunk;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * MapRenderer handles the rendering of chunks to images.
@@ -106,48 +110,41 @@ public class MapRenderer {
     /**
      * Render a single chunk to a 16x16 tile image (1 pixel per block).
      */
-    public CompletableFuture<BufferedImage> renderChunk(Dimension dimension, int chunkX, int chunkZ) {
+    public CompletableFuture<BufferedImage> renderChunk(Dimension dimension, Chunk chunk) {
         return CompletableFuture.supplyAsync(() -> {
-            Chunk chunk = dimension.getChunkManager().getChunk(chunkX, chunkZ);
-            if (chunk == null) {
-                return null;
-            }
-
-            int startX = chunkX << 4;
-            int startZ = chunkZ << 4;
             int[] pixels = new int[CHUNK_SIZE * CHUNK_SIZE];
             int[] lastY = new int[CHUNK_SIZE];
 
             // First pass: get initial heights for z=0
-            for (int x = 0; x < CHUNK_SIZE; x++) {
-                int worldX = startX + x;
-                int worldZ = startZ - 1;
-                HeightResult hr = getTopBlockHeight(dimension, worldX, worldZ);
-                lastY[x] = hr != null ? hr.y : SEA_LEVEL;
-            }
-
-            // Main rendering pass
-            for (int z = 0; z < CHUNK_SIZE; z++) {
-                for (int x = 0; x < CHUNK_SIZE; x++) {
-                    int worldX = startX + x;
-                    int worldZ = startZ + z;
-
-                    Color color = getMapColor(dimension, worldX, worldZ, lastY[x]);
-
-                    HeightResult hr = getTopBlockHeight(dimension, worldX, worldZ);
-                    if (hr != null) {
-                        lastY[x] = hr.y;
+            var lastChunk = dimension.getChunkManager().getChunk(chunk.getX(), chunk.getZ() - 1);
+            if (lastChunk == null) {
+                Arrays.fill(lastY, SEA_LEVEL);
+            } else {
+                lastChunk.applyOperation(unsafeChunk -> {
+                    for (int x = 0; x < CHUNK_SIZE; x++) {
+                        HeightResult hr = getTopBlockHeight(unsafeChunk, x, 15);
+                        lastY[x] = hr != null ? hr.y : SEA_LEVEL;
                     }
-
-                    pixels[z * CHUNK_SIZE + x] = color.getRGB();
-                }
+                }, OperationType.READ, OperationType.NONE);
             }
+
+            chunk.applyOperation(unsafeChunk -> {
+                // Main rendering pass
+                for (int z = 0; z < CHUNK_SIZE; z++) {
+                    for (int x = 0; x < CHUNK_SIZE; x++) {
+                        Color color = getMapColor(unsafeChunk, x, z, lastY[x]);
+                        HeightResult hr = getTopBlockHeight(unsafeChunk, x, z);
+                        lastY[x] = hr != null ? hr.y : SEA_LEVEL;
+                        pixels[z * CHUNK_SIZE + x] = color.getRGB();
+                    }
+                }
+            }, OperationType.READ, OperationType.READ);
 
             BufferedImage image = new BufferedImage(CHUNK_TILE_SIZE, CHUNK_TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
             image.setRGB(0, 0, CHUNK_TILE_SIZE, CHUNK_TILE_SIZE, pixels, 0, CHUNK_TILE_SIZE);
             return image;
         }, Server.getInstance().getVirtualThreadPool()).exceptionally(e -> {
-            AllayMap.getInstance().getPluginLogger().error("Error rendering chunk ({}, {})", chunkX, chunkZ, e);
+            AllayMap.getInstance().getPluginLogger().error("Error rendering chunk ({}, {})", chunk.getX(), chunk.getZ(), e);
             return createEmptyChunkTile();
         });
     }
@@ -167,20 +164,20 @@ public class MapRenderer {
     /**
      * Get the map color for a specific position
      */
-    private Color getMapColor(Dimension dimension, int x, int z, int lastY) {
-        HeightResult result = getTopBlockHeight(dimension, x, z);
+    private Color getMapColor(UnsafeChunk chunk, int x, int z, int lastY) {
+        var result = getTopBlockHeight(chunk, x, z);
         if (result == null) {
             return UNLOADED_CHUNK_COLOR;
         }
 
-        BlockState blockState = result.state;
+        var blockState = result.state;
         int y = result.y;
-        BiomeType biome = dimension.getBiome(x, y, z);
+        var biome = chunk.getBiome(x, y, z);
 
-        Color color = computeMapColor(blockState, biome);
+        var color = computeMapColor(blockState, biome);
 
         // Check if block is underwater
-        if (dimension.getBlockState(x, y + 1, z).getBlockType().hasBlockTag(BlockTags.WATER)) {
+        if (chunk.getBlockState(x, y + 1, z).getBlockType().hasBlockTag(BlockTags.WATER)) {
             if (AllayMap.getInstance().getConfig().renderUnderwaterBlocks()) {
                 color = applyWaterTint(color, y, biome);
             } else {
@@ -200,24 +197,14 @@ public class MapRenderer {
 
     /**
      * Find the top renderable block at a position.
-     * Only uses already-loaded chunks, does NOT trigger chunk loading.
      */
-    private HeightResult getTopBlockHeight(Dimension dimension, int x, int z) {
-        // Only get the chunk if it's already loaded - do NOT load it
-        Chunk chunk = dimension.getChunkManager().getChunk(x >> 4, z >> 4);
-        if (chunk == null) {
-            return null;
-        }
-
-        int chunkX = x & 0xF;
-        int chunkZ = z & 0xF;
-
-        var dimensionInfo = dimension.getDimensionInfo();
-        int height = AllayMap.getInstance().getConfig().ignoreWorldHeightMap() ? dimensionInfo.maxHeight() : chunk.getHeight(chunkX, chunkZ);
+    private HeightResult getTopBlockHeight(UnsafeChunk chunk, int x, int z) {
+        var dimensionInfo = chunk.getDimensionInfo();
         int minHeight = dimensionInfo.minHeight();
 
+        int height = AllayMap.getInstance().getConfig().ignoreWorldHeightMap() ? dimensionInfo.maxHeight() : chunk.getHeight(x, z);
         while (height >= minHeight) {
-            BlockState state = chunk.getBlockState(chunkX, height, chunkZ);
+            BlockState state = chunk.getBlockState(x, height, z);
             var mapColor = state.getBlockStateData().mapColor();
             var tintMethod = state.getBlockStateData().tintMethod();
 

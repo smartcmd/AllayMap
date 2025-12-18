@@ -5,6 +5,7 @@ import me.daoge.allaymap.AllayMap;
 import org.allaymc.api.server.Server;
 import org.allaymc.api.utils.hash.HashUtils;
 import org.allaymc.api.world.Dimension;
+import org.allaymc.api.world.chunk.Chunk;
 import org.slf4j.Logger;
 
 import javax.imageio.ImageIO;
@@ -77,11 +78,11 @@ public class MapTileManager {
                 logger.debug("Processing {} dirty chunks in {}", dirtyChunks.size(), world.getName());
 
                 for (long chunkKey : dirtyChunks) {
-                    int chunkX = HashUtils.getXFromHashXZ(chunkKey);
-                    int chunkZ = HashUtils.getZFromHashXZ(chunkKey);
-
-                    // Render and save the chunk tile (zoom 0)
-                    renderAndSaveChunk(dimension, chunkX, chunkZ);
+                    var chunk = dimension.getChunkManager().getChunk(chunkKey);
+                    if (chunk != null) {
+                        // Render and save the chunk tile (zoom 0)
+                        renderAndSaveChunk(dimension, chunk);
+                    }
                 }
             }
         }
@@ -90,22 +91,23 @@ public class MapTileManager {
     /**
      * Render a chunk and save it to disk.
      */
-    private void renderAndSaveChunk(Dimension dimension, int chunkX, int chunkZ) {
-        String dimensionName = getDimensionName(dimension);
-        String key = "render:" + getTilePath(dimensionName, chunkX, chunkZ);
+    private void renderAndSaveChunk(Dimension dimension, Chunk chunk) {
+        var dimensionName = getDimensionName(dimension);
+        var key = "render:" + getTilePath(dimensionName, chunk.getX(), chunk.getZ());
 
-        tileTasks.computeIfAbsent(key, k -> renderer.renderChunk(dimension, chunkX, chunkZ)
+        tileTasks.computeIfAbsent(key, k -> renderer.renderChunk(dimension, chunk)
                 .thenApply(image -> {
                     if (image != null) {
-                        saveTile(dimensionName, chunkX, chunkZ, image);
+                        // Only save the image if it is generated successfully
+                        saveTile(dimensionName, chunk.getX(), chunk.getZ(), image);
                         return image;
                     }
 
                     return createEmptyTile();
                 })
                 .exceptionally(e -> {
-                    logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
-                    return null;
+                    logger.error("Failed to render chunk ({}, {})", chunk.getX(), chunk.getZ(), e);
+                    return createEmptyTile();
                 })
         ).whenComplete((result, error) -> tileTasks.remove(key));
     }
