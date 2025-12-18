@@ -145,7 +145,7 @@ public class MapRenderer {
             return image;
         }, Server.getInstance().getVirtualThreadPool()).exceptionally(e -> {
             AllayMap.getInstance().getPluginLogger().error("Error rendering chunk ({}, {})", chunk.getX(), chunk.getZ(), e);
-            return createEmptyChunkTile();
+            return null;
         });
     }
 

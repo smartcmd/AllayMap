@@ -495,8 +495,11 @@
                 // 3. Update List Empty State
                 if (players.length === 0 && this.dom.playerList.children.length > 0) {
                     this.dom.playerList.innerHTML = '<div style="padding:10px; color: #6272a4; font-size: 12px;">No players online</div>';
-                } else if (players.length > 0 && this.dom.playerList.querySelector('div').textContent.includes('No players')) {
-                    this.dom.playerList.innerHTML = '';
+                } else if (players.length > 0) {
+                    const firstDiv = this.dom.playerList.querySelector('div');
+                    if (firstDiv && (firstDiv.textContent.includes('No players') || firstDiv.textContent.includes('Waiting'))) {
+                        this.dom.playerList.innerHTML = '';
+                    }
                 }
 
             } catch (e) {
