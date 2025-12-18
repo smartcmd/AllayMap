@@ -5,7 +5,7 @@ plugins {
 
 group = "me.daoge.allaymap"
 description = "AllayMap is a minimalistic and lightweight world map viewer for Allay servers, using the vanilla map rendering style"
-version = "0.2.0-SNAPSHOT"
+version = "0.2.0"
 
 java {
     toolchain {
