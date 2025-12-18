@@ -110,7 +110,7 @@ public class MapRenderer {
         return CompletableFuture.supplyAsync(() -> {
             Chunk chunk = dimension.getChunkManager().getChunk(chunkX, chunkZ);
             if (chunk == null) {
-                return createEmptyChunkTile();
+                return null;
             }
 
             int startX = chunkX << 4;

@@ -96,8 +96,12 @@ public class MapTileManager {
 
         tileTasks.computeIfAbsent(key, k -> renderer.renderChunk(dimension, chunkX, chunkZ)
                 .thenApply(image -> {
-                    saveTile(dimensionName, chunkX, chunkZ, image);
-                    return image;
+                    if (image != null) {
+                        saveTile(dimensionName, chunkX, chunkZ, image);
+                        return image;
+                    }
+
+                    return createEmptyTile();
                 })
                 .exceptionally(e -> {
                     logger.error("Failed to render chunk ({}, {})", chunkX, chunkZ, e);
