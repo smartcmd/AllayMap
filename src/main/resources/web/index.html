@@ -25,13 +25,13 @@
 
         #map { height: 100%; width: 100%; z-index: 1; }
 
-        /* 优化地图切片渲染，防止像素模糊 */
+        /* Optimize map tile rendering to prevent pixel blur */
         .leaflet-tile {
             image-rendering: pixelated; /* Chrome/Edge */
             image-rendering: -moz-crisp-edges; /* Firefox */
         }
 
-        /* 平滑玩家移动动画 */
+        /* Smooth player movement animation */
         .leaflet-marker-icon {
             transition: transform 0.5s linear;
         }
@@ -74,7 +74,7 @@
         #player-list {
             max-height: 300px;
             overflow-y: auto;
-            /* 自定义滚动条 */
+            /* Custom scrollbar */
             scrollbar-width: thin;
             scrollbar-color: var(--border) transparent;
         }
@@ -155,7 +155,7 @@
             text-align: center;
             opacity: 0.9;
         }
-        /* 小三角 */
+        /* Small triangle arrow */
         .player-label::after {
             content: '';
             position: absolute;
@@ -186,7 +186,7 @@
 
         #share-btn {
             position: absolute;
-            bottom: 60px; /* 位于坐标显示上方 */
+            bottom: 60px; /* Above the coordinates display */
             left: 20px;
             z-index: 1000;
             width: 40px;
@@ -213,7 +213,7 @@
             transform: translateY(0);
         }
 
-        /* 提示气泡 (默认隐藏) */
+        /* Tooltip bubble (hidden by default) */
         #share-btn .tooltip {
             position: absolute;
             left: 50px;
@@ -234,12 +234,115 @@
             opacity: 1;
             transform: translateX(0);
         }
+
+        /* Control panel toggle button */
+        #controls-toggle {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1001;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--panel-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+            opacity: 0;
+            pointer-events: none;
+            backdrop-filter: blur(5px);
+        }
+
+        #controls-toggle:hover {
+            background: var(--border);
+            transform: translateY(-2px);
+            color: var(--accent);
+        }
+
+        #controls-toggle:active {
+            transform: translateY(0);
+        }
+
+        #controls-toggle.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Control panel collapse/expand animations */
+        #controls {
+            transform-origin: top right;
+            transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+        }
+
+        #controls.collapsed {
+            opacity: 0;
+            transform: scale(0.9) translateX(10px);
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        /* Control panel header with collapse button */
+        .controls-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .controls-header h3 {
+            margin: 0;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent);
+        }
+
+        #controls-collapse {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        #controls-collapse:hover {
+            background: var(--border);
+            color: var(--text-primary);
+        }
     </style>
 </head>
 <body>
 <div id="map"></div>
 
+<!-- Toggle button shown when panel is collapsed -->
+<button id="controls-toggle" title="Show Control Panel">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+        <line x1="9" y1="3" x2="9" y2="21"></line>
+    </svg>
+</button>
+
 <div id="controls">
+    <div class="controls-header">
+        <h3>Control Panel</h3>
+        <button id="controls-collapse" title="Collapse Panel">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="18 11 12 17 6 11"></polyline>
+            </svg>
+        </button>
+    </div>
+
     <h3>World</h3>
     <select id="world-select">
         <option value="" disabled selected>Select World</option>
@@ -287,7 +390,10 @@
                 worldSelect: document.getElementById('world-select'),
                 playerList: document.getElementById('player-list'),
                 coords: document.getElementById('coords'),
-                shareBtn: document.getElementById('share-btn')
+                shareBtn: document.getElementById('share-btn'),
+                controls: document.getElementById('controls'),
+                controlsToggle: document.getElementById('controls-toggle'),
+                controlsCollapse: document.getElementById('controls-collapse')
             };
 
             this.initMap();
@@ -313,7 +419,7 @@
                 tileSize: this.config.tileSize,
                 noWrap: true,
                 bounds: [[-1000000, -1000000], [1000000, 1000000]],
-                errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' // 透明占位图
+                errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' // Transparent placeholder image
             });
 
             // Override getTileUrl dynamically
@@ -337,6 +443,10 @@
 
             this.dom.shareBtn.addEventListener('click', () => this.copyPermalink());
 
+            // Control panel collapse/expand handlers
+            this.dom.controlsCollapse.addEventListener('click', () => this.toggleControls(false));
+            this.dom.controlsToggle.addEventListener('click', () => this.toggleControls(true));
+
             // Coords Update (using requestAnimationFrame for performance)
             this.map.on('mousemove', (e) => {
                 if (this.coordReq) cancelAnimationFrame(this.coordReq);
@@ -353,23 +463,35 @@
             });
         }
 
+        toggleControls(show) {
+            if (show) {
+                // Expand the control panel
+                this.dom.controls.classList.remove('collapsed');
+                this.dom.controlsToggle.classList.remove('visible');
+            } else {
+                // Collapse the control panel
+                this.dom.controls.classList.add('collapsed');
+                this.dom.controlsToggle.classList.add('visible');
+            }
+        }
+
         copyPermalink() {
             const center = this.map.getCenter();
             const zoom = this.map.getZoom();
             const x = Math.round(center.lng);
-            const z = Math.round(-center.lat); // Leaflet Lat 是反转的 Z
+            const z = Math.round(-center.lat); // Leaflet Lat is inverted Z
             const world = this.state.currentWorld;
 
-            // 构建 URL
+            // Build URL
             const url = new URL(window.location.href);
             url.searchParams.set('world', world);
             url.searchParams.set('x', x);
             url.searchParams.set('z', z);
             url.searchParams.set('zoom', zoom);
 
-            // 复制到剪贴板
+            // Copy to clipboard
             navigator.clipboard.writeText(url.toString()).then(() => {
-                // 显示成功提示
+                // Show success message
                 this.dom.shareBtn.classList.add('copied');
                 setTimeout(() => {
                     this.dom.shareBtn.classList.remove('copied');
@@ -399,7 +521,7 @@
                     return;
                 }
 
-                // 解析 URL 参数
+                // Parse URL parameters
                 const params = new URLSearchParams(window.location.search);
                 const paramWorld = params.get('world');
                 const paramX = params.get('x');
@@ -409,7 +531,7 @@
                 let initialWorld = null;
                 let initialX = 0;
                 let initialZ = 0;
-                let initialZoom = 2; // 默认缩放
+                let initialZoom = 2; // Default zoom
 
                 data.worlds.forEach((w, index) => {
                     const opt = document.createElement('option');
@@ -419,25 +541,25 @@
                     opt.dataset.z = w.spawn.z;
                     this.dom.worldSelect.appendChild(opt);
 
-                    // 逻辑：如果 URL 指定了世界且存在，则使用它；否则默认使用第一个世界
+                    // Logic: if URL specifies a world and it exists, use it; otherwise default to first world
                     if (paramWorld && w.id === paramWorld) {
                         initialWorld = w.id;
-                        // 如果 URL 有坐标，用 URL 的，否则用出生点
+                        // If URL has coordinates, use URL's; otherwise use spawn point
                         initialX = paramX ? parseFloat(paramX) : w.spawn.x;
                         initialZ = paramZ ? parseFloat(paramZ) : w.spawn.z;
                         initialZoom = paramZoom ? parseFloat(paramZoom) : this.config.maxZoom;
 
-                        // 同步 Select 的选中状态
+                        // Sync Select's selected state
                         setTimeout(() => { this.dom.worldSelect.value = w.id; }, 0);
                     } else if (index === 0 && !initialWorld) {
-                        // 默认回退
+                        // Default fallback
                         initialWorld = w.id;
                         initialX = w.spawn.x;
                         initialZ = w.spawn.z;
                     }
                 });
 
-                // 初始化地图视图
+                // Initialize map view
                 if (initialWorld) {
                     this.setWorld(initialWorld, initialX, initialZ, initialZoom);
                 }
@@ -449,13 +571,13 @@
         }
 
         setWorld(id, x, z, zoom = 2) {
-            // 即使是同一个世界，如果是通过 URL 跳转来的，我们也允许重新定位视图
-            // 但如果是普通切换，我们通常只想加载瓦片
+            // Even for the same world, if coming from URL navigation, allow repositioning the view
+            // But for normal switching, we usually just want to load tiles
 
             const isWorldChanged = this.state.currentWorld !== id;
             this.state.currentWorld = id;
 
-            // 刷新 Select UI (防止程序调用 setWorld 时 UI 没变)
+            // Refresh Select UI (prevent UI from not changing when setWorld is called programmatically)
             if (this.dom.worldSelect.value !== id) {
                 this.dom.worldSelect.value = id;
             }
@@ -465,7 +587,7 @@
                 this.refreshMarkerVisibility();
             }
 
-            // 移动视角
+            // Move view
             this.map.setView([-z, x], zoom);
         }
 
